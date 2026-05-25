@@ -1,0 +1,78 @@
+modLoader="javafml"
+loaderVersion="[43,)"
+license="MIT"
+
+[[mods]]
+modId="backpack_arsenal"
+version="1.0.0"
+displayName="Backpack Arsenal"
+description='''
+Sophisticated Backpacks に武器を「特殊納刀」することで充電し、
+電気属性の追加攻撃ができるようになる "The four primitives and Weapons" アドオン。
+'''
+authors="hiromichi-ngs"
+
+# ===== 依存関係 =====
+# Minecraft 本体
+[[dependencies.backpack_arsenal]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="[${mc_version}]"
+    ordering="NONE"
+    side="BOTH"
+
+# Forge
+[[dependencies.backpack_arsenal]]
+    modId="forge"
+    mandatory=true
+    versionRange="[47,)"
+    ordering="NONE"
+    side="BOTH"
+
+# 本体: The four primitives and Weapons（必須）
+[[dependencies.backpack_arsenal]]
+    modId="the_four_primitives_and_weapons"
+    mandatory=true
+    versionRange="[1.0.0,)"
+    ordering="AFTER"
+    side="BOTH"
+
+# Sophisticated Backpacks（必須）— 充電元のバックパック本体
+[[dependencies.backpack_arsenal]]
+    modId="sophisticatedbackpacks"
+    mandatory=true
+    versionRange="[3.20.0,)"
+    ordering="AFTER"
+    side="BOTH"
+
+# Sophisticated Core（必須）— Sophisticated Backpacks のコアライブラリ
+[[dependencies.backpack_arsenal]]
+    modId="sophisticatedcore"
+    mandatory=true
+    versionRange="[1.0.0,)"
+    ordering="AFTER"
+    side="BOTH"
+
+# Curios API（必須）— 本体MOD のアクセサリ/装備スロット連携用
+[[dependencies.backpack_arsenal]]
+    modId="curios_api"
+    mandatory=true
+    versionRange="[0,)"
+    ordering="AFTER"
+    side="BOTH"
+
+# GeckoLib（必須）— 本体MOD のアニメーション基盤
+[[dependencies.backpack_arsenal]]
+    modId="geckolib"
+    mandatory=true
+    versionRange="[0,)"
+    ordering="AFTER"
+    side="BOTH"
+
+# JEI（任意）— レシピUI 連携
+[[dependencies.backpack_arsenal]]
+    modId="jei"
+    mandatory=false
+    versionRange="[0,)"
+    ordering="AFTER"
+    side="BOTH"

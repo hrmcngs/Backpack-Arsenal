@@ -1,0 +1,16 @@
+{
+  "_comment": [
+    "Backpack Arsenal — 武器タイプ宣言",
+    "本体MOD の WeaponTypeRegistry が data/<modid>/weapon_types/*.json を自動収集する。",
+    "voltaic_blade は登録上は刀 (katana)。挙動上は通常の刀より少し攻撃速度が速い。",
+    "katana 登録のメリット: 刀モーション/納刀(saya)システム/JEI が自動で乗る。"
+  ],
+  "types": {
+    "katana": {
+      "display_name": "刀",
+      "items": [
+        "backpack_arsenal:voltaic_blade"
+      ]
+    }
+  }
+}

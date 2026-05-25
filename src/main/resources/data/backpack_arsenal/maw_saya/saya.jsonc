@@ -1,0 +1,14 @@
+// =====================================================================
+// Backpack Arsenal — 鞘(saya) 納刀対象アイテム宣言
+//
+// 本体MOD の SayaRegistry が data/<modid>/maw_saya/*.jsonc を自動収集する。
+// voltaic_blade は登録上は刀 (katana) なので 'katana' 鞘タイプに登録する。
+//
+// 値はカスタム鞘モデルへの ResourceLocation。
+// 実体: assets/backpack_arsenal/models/custom/saya/katana/saya_voltaic_blade.json
+// =====================================================================
+{
+  "katana": {
+    "backpack_arsenal:voltaic_blade": "backpack_arsenal:custom/saya/katana/saya_voltaic_blade"
+  }
+}

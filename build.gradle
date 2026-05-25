@@ -1,0 +1,157 @@
+buildscript {
+    repositories {
+        maven { url = 'https://maven.minecraftforge.net' }
+        mavenCentral()
+    }
+    dependencies {
+        classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '[6.0,6.2)', changing: true
+    }
+}
+apply plugin: 'net.minecraftforge.gradle'
+apply plugin: 'eclipse'
+
+// =====================================================================
+// Backpack Arsenal — Sophisticated Backpacks 連携アドオン
+// 本体: The four primitives and Weapons
+// =====================================================================
+version = '1.0.0'
+group   = 'com.example.backpackarsenal'
+archivesBaseName = 'backpack-arsenal'
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+// =====================================================================
+// バージョン定義 — 本体MOD「The four primitives and Weapons」に合わせる
+// =====================================================================
+def mc_version    = '1.20.1'
+def forge_version = '1.20.1-47.1.0'
+
+// 本体MOD (libs/local/... に配置するjarの artifact 名とバージョン)
+def maw_artifact      = 'the_four_primitives_and_weapons'
+def maw_version       = '1.20.1-test'
+
+// =====================================================================
+// 本体MOD jar の自動取り込み（addons-sample と同じ仕組み）
+// =====================================================================
+def mawSourceProject = project.findProperty('mawSourceProject')
+        ?: "${System.getProperty('user.home')}/The-four-primitives-and-Weapons"
+def mawDestDir = file("libs/local/${maw_artifact}/${maw_version}")
+def mawDestFile = new File(mawDestDir, "${maw_artifact}-${maw_version}.jar")
+def mawSourceJarDir = file("${mawSourceProject}/build/libs")
+if (mawSourceJarDir.exists()) {
+    def latestJar = mawSourceJarDir.listFiles()
+            .findAll { it.name.endsWith('.jar')
+                       && !it.name.contains('-sources')
+                       && !it.name.contains('-dev')
+                       && !it.name.contains('-javadoc') }
+            .max { it.lastModified() }
+    if (latestJar != null && (!mawDestFile.exists() || latestJar.lastModified() > mawDestFile.lastModified())) {
+        mawDestDir.mkdirs()
+        mawDestFile.bytes = latestJar.bytes
+        println "[backpack-arsenal] 本体MOD jar を取り込みました: ${latestJar.name} → ${mawDestFile.name}"
+    }
+} else {
+    if (!mawDestFile.exists()) {
+        logger.warn("[backpack-arsenal] 本体MOD ソース ${mawSourceProject} が見つからず、libs/local にもjarが無い。")
+        logger.warn("[backpack-arsenal] 本体MODを ${mawSourceProject} に置くか、libs/local/${maw_artifact}/${maw_version}/ に手動でjarを置いてください。")
+    }
+}
+
+// =====================================================================
+// 前提MOD バージョン
+// =====================================================================
+def curios_version    = '5.10.0+1.20.1'
+def geckolib_version  = '4.7.3'
+def jei_version       = '15.20.0.129'
+
+// Sophisticated Backpacks (CurseForge project id: 422301)
+// Sophisticated Core      (CurseForge project id: 567879)
+// https://www.curseforge.com/minecraft/mc-mods/sophisticated-backpacks/files
+// CurseMaven の fileId は CurseForge のファイル詳細ページの URL 末尾の数字。
+// 1.20.1 用に上から最新を入れている。新版が出たら差し替えれば追従できる。
+def sb_curse_file      = '8136850'   // 3.24.43.1789 (2026-05 時点の 1.20.1 最新)
+def sb_core_curse_file = '8143884'   // 1.20.1-1.3.38.1885
+
+minecraft {
+    mappings channel: 'official', version: mc_version
+
+    // dev実行時の mixin refmap remap (本体MODと同じ設定)
+    def commonProps = [
+        'forge.logging.markers'         : 'REGISTRIES',
+        'forge.logging.console.level'   : 'debug',
+        'mixin.env.remapRefMap'         : 'true',
+        'mixin.env.refMapRemappingFile' : "${projectDir}/build/createSrgToMcp/output.srg".toString()
+    ]
+
+    runs {
+        client {
+            workingDirectory project.file('run')
+            commonProps.each { k, v -> property k, v }
+        }
+        server {
+            workingDirectory project.file('run')
+            commonProps.each { k, v -> property k, v }
+        }
+    }
+}
+
+repositories {
+    // libs/ をローカルMavenリポジトリとして扱う（本体MOD jar 用）
+    maven {
+        url = file('libs').toURI()
+        metadataSources { artifact() }
+    }
+    maven { url 'https://maven.theillusivec4.top/' }
+    maven { url 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/' }
+    maven {
+        name = 'Progwml6 maven'
+        url  = 'https://dvs1.progwml6.com/files/maven/'
+    }
+    maven {
+        name = 'ModMaven'
+        url  = 'https://modmaven.dev'
+    }
+    // Sophisticated Backpacks 配信元
+    maven {
+        url 'https://www.cursemaven.com'
+        content { includeGroup 'curse.maven' }
+    }
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${forge_version}"
+
+    // 本体MOD: The four primitives and Weapons (必須)
+    implementation fg.deobf("local:${maw_artifact}:${maw_version}")
+
+    // Sophisticated Backpacks (必須前提) — CurseMaven 経由で取得
+    //   コンパイル時に IItemHandler 経由で連携するだけなので compileOnly でも動くが、
+    //   dev環境ランタイムにも乗せるため implementation にしておく。
+    implementation fg.deobf("curse.maven:sophisticated-backpacks-422301:${sb_curse_file}")
+    runtimeOnly    fg.deobf("curse.maven:sophisticated-core-567879:${sb_core_curse_file}")
+
+    // Curios (任意) — 本体MOD連携用
+    compileOnly fg.deobf("top.theillusivec4.curios:curios-forge:${curios_version}:api")
+    runtimeOnly fg.deobf("top.theillusivec4.curios:curios-forge:${curios_version}")
+
+    // GeckoLib (任意)
+    implementation fg.deobf("software.bernie.geckolib:geckolib-forge-1.20.1:${geckolib_version}")
+
+    // JEI (任意)
+    compileOnly fg.deobf("mezz.jei:jei-1.20.1-common-api:${jei_version}")
+    compileOnly fg.deobf("mezz.jei:jei-1.20.1-forge-api:${jei_version}")
+    runtimeOnly fg.deobf("mezz.jei:jei-1.20.1-forge:${jei_version}")
+}
+
+processResources {
+    inputs.property 'mc_version', mc_version
+    filesMatching('META-INF/mods.toml') {
+        expand 'mc_version': mc_version
+    }
+}
+
+sourceSets.main.output.resourcesDir = sourceSets.main.java.classesDirectory
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}

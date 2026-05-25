@@ -1,0 +1,39 @@
+# Compiled class file
+*.class
+
+# Log file
+*.log
+
+# BlueJ files
+*.ctxt
+
+# Package Files #
+*.war
+*.nar
+*.ear
+*.tar.gz
+*.rar
+
+# virtual machine crash logs
+hs_err_pid*
+replay_pid*
+
+# Eclipse / IDE
+bin/
+.classpath
+.project
+.settings/
+.vscode/
+
+# Gradle / Forge
+build/*
+!build/libs/
+.gradle/
+run/
+
+# 本体MOD jar の自動取り込み先 (build.gradle が生成)
+# 必要なら libs/local/ もコミットしないほうが軽い
+libs/local/
+
+# macOS
+.DS_Store
