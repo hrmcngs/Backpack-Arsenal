@@ -24,7 +24,7 @@ java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 // バージョン定義 — 本体MOD「The four primitives and Weapons」に合わせる
 // =====================================================================
 def mc_version    = '1.20.1'
-def forge_version = '1.20.1-47.1.0'
+def forge_version = '26.1.2-64.0.8'
 
 // 本体MOD (libs/local/... に配置するjarの artifact 名とバージョン)
 def maw_artifact      = 'the_four_primitives_and_weapons'
