@@ -3,5 +3,6 @@
   "item.backpack_arsenal.voltaic_blade.charge_tooltip": "§bCharge: %s / %s",
   "item.backpack_arsenal.voltaic_blade.element_tooltip": "§dElectric Lv %s (charged)",
   "item.backpack_arsenal.voltaic_blade.need_charge_tooltip": "§7Sheath into a Sophisticated Backpack to charge",
-  "item.backpack_arsenal.voltaic_blade.slam_tooltip": "§eShift + Right-click: Thunder Slam"
+  "item.backpack_arsenal.voltaic_blade.slam_tooltip": "§eShift + Right-click: Thunder Slam",
+  "item.backpack_arsenal.arsenal_backpack": "Arsenal Backpack"
 }

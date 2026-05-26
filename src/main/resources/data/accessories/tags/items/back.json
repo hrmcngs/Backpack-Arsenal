@@ -1,0 +1,7 @@
+{
+  "_comment": "Accessories (Curios の代替/併用) の back スロット用タグ。SB が両方に登録しているのでこちらも合わせる。",
+  "replace": false,
+  "values": [
+    "backpack_arsenal:arsenal_backpack"
+  ]
+}

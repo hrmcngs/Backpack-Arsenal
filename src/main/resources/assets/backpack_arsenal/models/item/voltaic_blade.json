@@ -1,7 +1,7 @@
 {
-  "_comment": "Voltaic Blade — 刀。display は本体MOD の刀と同等の handheld にしてある。テクスチャは voltaic_blade.png に差し替えてください。",
-  "parent": "item/handheld",
+  "parent": "backpack_arsenal:custom/voltaic_blade",
   "textures": {
-    "layer0": "backpack_arsenal:item/voltaic_blade"
+    "0": "backpack_arsenal:block/voltaic_blade",
+    "particle": "backpack_arsenal:block/voltaic_blade"
   }
 }

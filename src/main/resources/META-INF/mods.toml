@@ -53,9 +53,10 @@ authors="hiromichi-ngs"
     ordering="AFTER"
     side="BOTH"
 
-# Curios API（必須）— 本体MOD のアクセサリ/装備スロット連携用
+# Curios（必須）— 本体MOD のアクセサリ/装備スロット連携用
+# 実 jar 内 modId は "curios" (5.x 系の current。"curios_api" ではない)
 [[dependencies.backpack_arsenal]]
-    modId="curios_api"
+    modId="curios"
     mandatory=true
     versionRange="[0,)"
     ordering="AFTER"

@@ -24,7 +24,7 @@ java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 // バージョン定義 — 本体MOD「The four primitives and Weapons」に合わせる
 // =====================================================================
 def mc_version    = '1.20.1'
-def forge_version = '26.1.2-64.0.8'
+def forge_version = '1.20.1-47.1.0'
 
 // 本体MOD (libs/local/... に配置するjarの artifact 名とバージョン)
 def maw_artifact      = 'the_four_primitives_and_weapons'
@@ -65,7 +65,7 @@ def geckolib_version  = '4.8.3'
 def jei_version       = '15.20.0.129'
 
 // Sophisticated Backpacks (CurseForge project id: 422301)
-// Sophisticated Core      (CurseForge project id: 567879)
+// Sophisticated Core      (CurseForge project id: 618298)
 // https://www.curseforge.com/minecraft/mc-mods/sophisticated-backpacks/files
 // CurseMaven の fileId は CurseForge のファイル詳細ページの URL 末尾の数字。
 // 1.20.1 用に上から最新を入れている。新版が出たら差し替えれば追従できる。
@@ -128,7 +128,9 @@ dependencies {
     //   コンパイル時に IItemHandler 経由で連携するだけなので compileOnly でも動くが、
     //   dev環境ランタイムにも乗せるため implementation にしておく。
     implementation fg.deobf("curse.maven:sophisticated-backpacks-422301:${sb_curse_file}")
-    runtimeOnly    fg.deobf("curse.maven:sophisticated-core-567879:${sb_core_curse_file}")
+    // SB の BackpackItem は SC の ItemBase を継承しているため、
+    // 自前で BackpackItem を extends する場合は SC もコンパイル時に必要 → implementation。
+    implementation fg.deobf("curse.maven:sophisticated-core-618298:${sb_core_curse_file}")
 
     // Curios (任意) — 本体MOD連携用
     compileOnly fg.deobf("top.theillusivec4.curios:curios-forge:${curios_version}:api")

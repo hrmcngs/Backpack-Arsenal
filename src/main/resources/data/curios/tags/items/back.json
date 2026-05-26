@@ -1,0 +1,7 @@
+{
+  "_comment": "arsenal_backpack を Curios の back スロット (背中スロット) に装備可能にする。SB の back タグへのアドオン側追加 (replace:false)。",
+  "replace": false,
+  "values": [
+    "backpack_arsenal:arsenal_backpack"
+  ]
+}

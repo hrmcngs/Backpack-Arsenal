@@ -87,9 +87,12 @@ public class BackpackChargingHandler {
         }
     }
 
-    /** ItemStack が Sophisticated Backpacks のバックパックかどうか判定 */
+    /** ItemStack が Sophisticated Backpacks のバックパックまたは ArsenalBackpack かどうか判定 */
     public static boolean isSophisticatedBackpack(ItemStack stack) {
         if (stack.isEmpty()) return false;
+        // 自前の ArsenalBackpack (SB BackpackItem 拡張) も充電対象に含める
+        if (stack.getItem() == ArsenalItems.ARSENAL_BACKPACK.get()) return true;
+
         ResourceLocation id = ForgeRegistries.ITEMS.getKey(stack.getItem());
         if (id == null) return false;
         if (!SB_MODID.equals(id.getNamespace())) return false;
