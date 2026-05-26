@@ -1,0 +1,45 @@
+# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+#
+# Forge MOD プロジェクト向け Dependabot 設定
+# - Gradle: build.gradle に書かれた普通の依存 (Maven Central / TheIllusiveC4 等)
+#   を週1で監視する。Forge 自身や CurseMaven (curse.maven:*) は Maven ではなく
+#   独自リポジトリから取るので Dependabot では追えないが、その辺は人間が
+#   手動で fileId を更新する運用とする。
+# - GitHub Actions: .github/workflows/ にワークフローを追加したら自動で追従。
+version: 2
+updates:
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "gradle"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    # CurseMaven 経由のものは Dependabot が解決できないので無視する。
+    # (build.gradle の curse.maven:* 系は手動で fileId を更新する)
+    ignore:
+      - dependency-name: "curse.maven:*"
+      - dependency-name: "local:*"
+      # 本体MOD 'the_four_primitives_and_weapons' は libs/local/ に置く前提
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "ci"
+      include: "scope"

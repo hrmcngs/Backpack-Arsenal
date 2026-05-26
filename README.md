@@ -33,6 +33,43 @@
 | 1ヒット消費 | 200 |
 | バックパック内充電速度 | 2 / tick (= 40 / 秒) |
 
+### 単押し抜刀 (R キー優先フック)
+
+MAW の単押し抜刀 (`R` キー) を**本体より先にフック**し、Sophisticated Backpack 内に
+voltaic_blade があれば優先で引き抜きます。
+
+- 仕組み: `ClientTickEvent` を `EventPriority.HIGHEST` で購読し、条件成立時だけ
+  `R.consumeClick()` を呼んで MAW のキー消費を奪う
+- 条件:
+  1. 画面が開いていない
+  2. メインハンドに voltaic_blade を **持っていない**
+  3. プレイヤーインベントリ内のいずれかの Sophisticated Backpack 内に voltaic_blade がある
+- 動作: 条件成立 → サーバへ独自パケット送信 → 最初に見つけた voltaic_blade をメインハンドへ
+  swap (元のメインハンドアイテムは空いたスロットへ)。装備音が鳴る。
+- 条件不成立: `R.consumeClick()` を呼ばないので、MAW の通常抜刀 (Curios 鞘) がそのまま動く
+
+実装:
+[`BackpackDrawClient`](src/main/java/backpackarsenal/client/BackpackDrawClient.java) +
+[`DrawFromBackpackPacket`](src/main/java/backpackarsenal/network/DrawFromBackpackPacket.java) +
+[`BackpackArsenalNetwork`](src/main/java/backpackarsenal/network/BackpackArsenalNetwork.java)
+
+### 例外特技: 雷叩きつけ (Thunder Slam)
+
+通常の刀には無い特殊アクション。**Sneak + 右クリック** で発動。
+通常の右クリックは本体MOD (MAW) の刀ロジック (納刀/抜刀) にそのまま PASS するので
+共存します。
+
+| 項目 | 値 |
+| --- | --- |
+| 発動キー | Sneak (Shift) + 右クリック |
+| クールダウン | 25 tick (約1.25秒) |
+| AOE中心 | プレイヤー前方 1.8 ブロック |
+| AOE半径 | 2.5 ブロック (足元 -1.0 〜 +2.0 の高さ) |
+| ダメージ | `5.0 + ElementLevel × 1.5` (無充電 5.0 / Lv1 6.5 / Lv2 8.0 / Lv3 9.5) |
+| 充電消費 | 400 (充電 0 でも発動するが消費もしない) |
+| 効果 | 周囲ノックバック(横方向+少し浮かせ) + アンビル落下音 |
+| 充電時追加 | 雷スパークパーティクル + 雷鳴音 |
+
 ### 充電 → 電気属性 攻撃の流れ
 
 1. プレイヤーが Sophisticated Backpack を所持し、その中に Voltaic Blade を入れる
