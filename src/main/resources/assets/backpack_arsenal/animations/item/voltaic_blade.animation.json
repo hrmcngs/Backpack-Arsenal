@@ -1,0 +1,9 @@
+{
+  "__comment": "Geckolib animation stub. idle (空) のみ定義。コントローラは VoltaicBladeItem.idlePredicate がこのキーを参照する。後で Blockbench でアニメを足したらこのファイルに追記する。",
+  "format_version": "1.8.0",
+  "animations": {
+    "animation.voltaic_blade.idle": {
+      "loop": true
+    }
+  }
+}

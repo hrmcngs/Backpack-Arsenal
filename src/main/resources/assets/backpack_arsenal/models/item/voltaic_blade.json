@@ -1,7 +1,7 @@
 {
-  "parent": "backpack_arsenal:custom/voltaic_blade",
+  "_comment": "Voltaic Blade — Geckolib BERS でレンダリングするため vanilla item model はスタブ。実3D描画は VoltaicBladeRenderer が geo/item/voltaic_blade.geo.json を baked して行う。layer0 はドロップエンティティ等で BERS が走らないコンテキスト用のフォールバック。",
+  "parent": "item/generated",
   "textures": {
-    "0": "backpack_arsenal:block/voltaic_blade",
-    "particle": "backpack_arsenal:block/voltaic_blade"
+    "layer0": "backpack_arsenal:item/voltaic_blade"
   }
 }
