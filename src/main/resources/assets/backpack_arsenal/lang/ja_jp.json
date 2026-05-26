@@ -4,5 +4,7 @@
   "item.backpack_arsenal.voltaic_blade.element_tooltip": "§d電気属性 Lv %s（発動中）",
   "item.backpack_arsenal.voltaic_blade.need_charge_tooltip": "§7Sophisticated Backpack に納刀して充電してください",
   "item.backpack_arsenal.voltaic_blade.slam_tooltip": "§eShift + 右クリック: 雷叩きつけ",
-  "item.backpack_arsenal.arsenal_backpack": "アーセナル・バックパック"
+  "item.backpack_arsenal.arsenal_backpack": "アーセナル・バックパック",
+  "motion.the_four_primitives_and_weapons.slam_down": "振り下ろし",
+  "motion.the_four_primitives_and_weapons.slam_down.desc": "充電量に応じて威力が上がる前方AOE叩きつけ。Voltaic Blade で発動すると充電を消費し雷ダメージが乗る。"
 }

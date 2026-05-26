@@ -2,12 +2,17 @@ package backpackarsenal;
 
 import backpackarsenal.init.ArsenalItems;
 import backpackarsenal.network.BackpackArsenalNetwork;
+import backpackarsenal.skill.SlamDownSkillAction;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import the_four_primitives_and_weapons.skill.PlayerSkillData;
+import the_four_primitives_and_weapons.skill.SkillRegistry;
+
+import java.util.EnumSet;
 
 /**
  * Backpack Arsenal — メインクラス
@@ -39,6 +44,35 @@ public class BackpackArsenalMod {
     }
 
     private void onCommonSetup(FMLCommonSetupEvent event) {
-        event.enqueueWork(BackpackArsenalNetwork::register);
+        event.enqueueWork(() -> {
+            BackpackArsenalNetwork.register();
+            registerSkills();
+        });
+    }
+
+    /**
+     * MAW の SkillRegistry に「振り下ろし」モーションを登録する。
+     *
+     * 互換スロット: 1st/2nd/3rd Hit / Charged / Shift+Right-click
+     * (Shift+Right-click は MAW 既定の Guard と被るが、ユーザー指定により入れる)
+     * 必須武器クラス: katana (本MOD の voltaic_blade は katana タイプに登録済み)
+     */
+    private void registerSkills() {
+        SkillRegistry.register(
+            "slam_down",
+            "振り下ろし",
+            "充電に応じて威力が上がる前方AOE叩きつけ。Voltaic Blade で発動すると充電を消費し雷ダメージが乗る。",
+            SkillRegistry.MotionCategory.SPECIAL,
+            EnumSet.of(
+                PlayerSkillData.AttackSlot.FIRST_HIT,
+                PlayerSkillData.AttackSlot.SECOND_HIT,
+                PlayerSkillData.AttackSlot.THIRD_HIT,
+                PlayerSkillData.AttackSlot.CHARGED,
+                PlayerSkillData.AttackSlot.SHIFT_RIGHT_CLICK
+            ),
+            "katana",
+            new SlamDownSkillAction()
+        );
+        LOGGER.info("[{}] Registered MAW motion 'slam_down' (振り下ろし) for katana", MODID);
     }
 }
