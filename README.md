@@ -53,22 +53,28 @@ voltaic_blade があれば優先で引き抜きます。
 [`DrawFromBackpackPacket`](src/main/java/backpackarsenal/network/DrawFromBackpackPacket.java) +
 [`BackpackArsenalNetwork`](src/main/java/backpackarsenal/network/BackpackArsenalNetwork.java)
 
-### 例外特技: 雷叩きつけ (Thunder Slam)
+### 特殊技: 雷振り下ろし (Voltaic Slam) — Skill Selection 経由のみ
 
-通常の刀には無い特殊アクション。**Sneak + 右クリック** で発動。
-通常の右クリックは本体MOD (MAW) の刀ロジック (納刀/抜刀) にそのまま PASS するので
-共存します。
+MAW の `Skill Selection` 画面で `雷振り下ろし (voltaic_slam_down)` を 1st/2nd/3rd Hit /
+Charged のいずれかに割り当て、その HitN タイミングで攻撃すると発動します。
+Voltaic Blade 専用 (Java クラス `VoltaicBladeItem` 限定で validate)。
+**Sneak+右クリック の独自ハンドラは撤去**しました — Shift+Right-click は MAW 既定の
+Guard 等に専念。
 
 | 項目 | 値 |
 | --- | --- |
-| 発動キー | Sneak (Shift) + 右クリック |
-| クールダウン | 25 tick (約1.25秒) |
+| 発動 | MAW Skill Selection で 1st/2nd/3rd/Charged のどれかに割り当て → 該当 Hit で発動 |
 | AOE中心 | プレイヤー前方 1.8 ブロック |
 | AOE半径 | 2.5 ブロック (足元 -1.0 〜 +2.0 の高さ) |
-| ダメージ | `5.0 + ElementLevel × 1.5` (無充電 5.0 / Lv1 6.5 / Lv2 8.0 / Lv3 9.5) |
+| ダメージ | `(5.0 + ElementLevel × 1.5) × max(0.5, power)` |
 | 充電消費 | 400 (充電 0 でも発動するが消費もしない) |
 | 効果 | 周囲ノックバック(横方向+少し浮かせ) + アンビル落下音 |
 | 充電時追加 | 雷スパークパーティクル + 雷鳴音 |
+
+実装の要点:
+- `SkillRegistry.register("voltaic_slam_down", ..., requiredWeaponClass = "VoltaicBladeItem", new SlamDownSkillAction())`
+- `weapon_types/weapons.json` の `special_weapons["backpack_arsenal:voltaic_blade"].special_motions.combat = ["voltaic_slam_down"]`
+- MAW 本体に既存の `slam_down` (sword/greatsword 用) とは別 ID で衝突回避
 
 ### 充電 → 電気属性 攻撃の流れ
 

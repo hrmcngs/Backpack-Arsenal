@@ -38,7 +38,9 @@ public class BackpackArsenalMod {
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
 
         ArsenalItems.REGISTRY.register(modBus);
+        backpackarsenal.init.ArsenalMenuTypes.REGISTRY.register(modBus);
         modBus.addListener(this::onCommonSetup);
+        modBus.addListener(this::onClientSetup);
 
         LOGGER.info("[{}] Loaded — backpacks now charge MAW weapons.", MODID);
     }
@@ -50,29 +52,50 @@ public class BackpackArsenalMod {
         });
     }
 
+    /** Screen を MenuType に紐付ける (client のみ)。
+     *  BackpackScreen の generic は BackpackContainer (parent) 固定なので、
+     *  generic 不一致を raw cast で回避する。 */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private void onClientSetup(net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent event) {
+        event.enqueueWork(() -> {
+            net.minecraft.client.gui.screens.MenuScreens.register(
+                (net.minecraft.world.inventory.MenuType)
+                    backpackarsenal.init.ArsenalMenuTypes.ARSENAL_BACKPACK_MENU.get(),
+                (net.minecraft.client.gui.screens.MenuScreens.ScreenConstructor)
+                    (menu, inv, title) -> new backpackarsenal.client.ArsenalBackpackScreen(
+                        (backpackarsenal.inventory.ArsenalBackpackContainer) menu, inv, title)
+            );
+        });
+    }
+
     /**
-     * MAW の SkillRegistry に「振り下ろし」モーションを登録する。
+     * MAW の SkillRegistry に「雷振り下ろし」モーションを登録する。
      *
-     * 互換スロット: 1st/2nd/3rd Hit / Charged / Shift+Right-click
-     * (Shift+Right-click は MAW 既定の Guard と被るが、ユーザー指定により入れる)
-     * 必須武器クラス: katana (本MOD の voltaic_blade は katana タイプに登録済み)
+     * MAW 本体に既に "slam_down" モーションが存在する (sword/greatsword 用) ため、
+     * 衝突を避けて独自 ID "voltaic_slam_down" で登録する。
+     *
+     * 互換スロット: 1st/2nd/3rd Hit / Charged (4種) のみ。
+     *   Shift+Right-click は MAW 既定の Guard 専用 (use() ハンドラも撤去済み)。
+     *
+     * 必須武器クラス: VoltaicBladeItem (Java クラス simple name)
+     *   ※ MAW の validate は loadout.getWeaponClass() (= item.getClass().getSimpleName())
+     *     と motion.requiredWeaponClass を equals() で比較する。
      */
     private void registerSkills() {
         SkillRegistry.register(
-            "slam_down",
-            "振り下ろし",
-            "充電に応じて威力が上がる前方AOE叩きつけ。Voltaic Blade で発動すると充電を消費し雷ダメージが乗る。",
+            "voltaic_slam_down",
+            "雷振り下ろし",
+            "充電に応じて威力が上がる前方AOE叩きつけ。Voltaic Blade 専用。充電があれば 400 消費して雷ダメージ追加。",
             SkillRegistry.MotionCategory.SPECIAL,
             EnumSet.of(
                 PlayerSkillData.AttackSlot.FIRST_HIT,
                 PlayerSkillData.AttackSlot.SECOND_HIT,
                 PlayerSkillData.AttackSlot.THIRD_HIT,
-                PlayerSkillData.AttackSlot.CHARGED,
-                PlayerSkillData.AttackSlot.SHIFT_RIGHT_CLICK
+                PlayerSkillData.AttackSlot.CHARGED
             ),
-            "katana",
+            backpackarsenal.item.VoltaicBladeItem.class.getSimpleName(),
             new SlamDownSkillAction()
         );
-        LOGGER.info("[{}] Registered MAW motion 'slam_down' (振り下ろし) for katana", MODID);
+        LOGGER.info("[{}] Registered MAW motion 'voltaic_slam_down' (雷振り下ろし) for VoltaicBladeItem", MODID);
     }
 }

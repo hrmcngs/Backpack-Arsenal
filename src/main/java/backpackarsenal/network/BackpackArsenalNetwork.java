@@ -31,5 +31,12 @@ public class BackpackArsenalNetwork {
             DrawFromBackpackPacket::decode,
             DrawFromBackpackPacket::handle
         );
+        CHANNEL.registerMessage(
+            id++,
+            SheathToBackpackPacket.class,
+            SheathToBackpackPacket::encode,
+            SheathToBackpackPacket::decode,
+            SheathToBackpackPacket::handle
+        );
     }
 }

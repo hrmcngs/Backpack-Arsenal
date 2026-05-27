@@ -16,15 +16,14 @@ import the_four_primitives_and_weapons.api.ISkillAction;
 import java.util.List;
 
 /**
- * 振り下ろし (Slam Down) — VoltaicBlade 用の MAW モーションハンドラ。
+ * 雷振り下ろし (voltaic_slam_down) — VoltaicBlade 専用の MAW モーションハンドラ。
  *
- * Sneak + 右クリック で VoltaicBladeItem#use() が呼ぶロジックと同じ AOE 叩きつけを
- * MAW の SkillRegistry 経由でも発動できるようにする。プレイヤーが Skill Selection 画面で
- * 1st/2nd/3rd Hit / Charged / Shift+Right-click のどこかに「振り下ろし」を割り当てると、
- * MAW の MotionExecutor が該当タイミングでこの execute(Player, float) を呼ぶ。
+ * MAW の Skill Selection 画面で 1st/2nd/3rd Hit / Charged に「雷振り下ろし」を
+ * 割り当てたとき、MAW の MotionExecutor が該当タイミングでこの execute(Player, float)
+ * を呼ぶ。Sneak+右クリックの起動は廃止 (use() ハンドラを撤去)。
  *
- * power は MAW から渡される強度 (0.0〜1.0) で、未充電 5.0 ベース → power 倍。
- * voltaic_blade 以外で発動した場合のフォールバックも考慮する (素手なら 4 ダメ程度)。
+ * power は MAW から渡される強度 (0.0〜1.0)、ダメージは充電 ElementLevel × 1.5 + 5.0 × power。
+ * voltaic_blade を持っていない状態で呼ばれることは無い想定 (requiredWeaponClass で絞り済み)。
  */
 public class SlamDownSkillAction implements ISkillAction {
 

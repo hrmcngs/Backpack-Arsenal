@@ -1,4 +1,4 @@
 {
-  "_comment": "Arsenal Backpack — SB の dynamic backpack model loader を継承するため、SB block model を parent にする。これにより BackpackItemStackRenderer が SB の 3D model を取得できて null にならない。ネザライト見た目を共有 (ブロック供給元と同じ)。",
-  "parent": "sophisticatedbackpacks:block/netherite_backpack"
+  "_comment": "Arsenal Backpack — SB の dynamic backpack model loader を継承するため SB block model を parent にする (BackpackItemStackRenderer が null にならない条件)。革backpack 見た目を共有 (ブロック供給元 BACKPACK と一致)。",
+  "parent": "sophisticatedbackpacks:block/backpack"
 }

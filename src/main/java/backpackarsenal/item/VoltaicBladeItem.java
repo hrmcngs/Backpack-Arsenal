@@ -7,8 +7,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
@@ -19,8 +17,6 @@ import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.Tier;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.phys.AABB;
-import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
 
@@ -40,10 +36,11 @@ import java.util.List;
  *   最大値: 6000 (MAX_CHARGE)
  * 1ヒット消費: 200
  *
- * 例外特技: 雷叩きつけ (slam)
- *   通常の刀は持っていない移動 — Sneak + 右クリック で前方 AOE 叩きつけを発動。
- *   通常右クリックは MAW の刀ロジック (納刀/抜刀) に PASS。
- *   ダメージは充電 ElementLevel でスケール。充電があれば消費するが無くても撃てる。
+ * 例外特技: 雷振り下ろし (voltaic_slam_down)
+ *   MAW の SkillRegistry に "voltaic_slam_down" として登録され、Skill Selection 画面で
+ *   1st/2nd/3rd Hit/Charged のいずれかに割り当てて発動する (sneak+RC ハンドラは無し)。
+ *   実装は backpackarsenal.skill.SlamDownSkillAction。
+ *   充電 ElementLevel に応じてダメージスケール、充電消費は 400。
  */
 public class VoltaicBladeItem extends SwordItem {
 
@@ -54,15 +51,7 @@ public class VoltaicBladeItem extends SwordItem {
     public static final int MAX_CHARGE = 6000;
     public static final int CHARGE_COST_PER_HIT = 200;
     public static final int CHARGE_PER_TICK_IN_BACKPACK = 2;
-
-    /** 雷叩きつけ — 1 回の充電消費 (充電が無くても発動はする) */
-    public static final int SLAM_CHARGE_COST = 400;
-    /** 雷叩きつけ — クールダウン (tick) */
-    public static final int SLAM_COOLDOWN_TICKS = 25;
-    /** 雷叩きつけ — AOE 半径 */
-    public static final double SLAM_RADIUS = 2.5;
-    /** 雷叩きつけ — プレイヤー前方どれだけ先に AOE 中心を置くか */
-    public static final double SLAM_FORWARD = 1.8;
+    // 雷振り下ろし の数値は SlamDownSkillAction 側に定義 (MAW Skill Selection 経由でのみ発動)。
 
     public VoltaicBladeItem() {
         super(
@@ -144,93 +133,6 @@ public class VoltaicBladeItem extends SwordItem {
         return result;
     }
 
-    // ==================== 雷叩きつけ (slam) ====================
-
-    @Override
-    public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
-        ItemStack stack = player.getItemInHand(hand);
-
-        // 通常右クリックは本体MOD (刀の納刀/抜刀) に任せるため PASS。
-        // Sneak + 右クリック でだけ叩きつけ発動。
-        if (!player.isShiftKeyDown()) {
-            return InteractionResultHolder.pass(stack);
-        }
-
-        if (player.getCooldowns().isOnCooldown(this)) {
-            return InteractionResultHolder.fail(stack);
-        }
-
-        if (!level.isClientSide) {
-            performSlam(level, player, stack);
-            if (getCharge(stack) > 0) {
-                addCharge(stack, -SLAM_CHARGE_COST);
-            }
-        }
-
-        player.swing(hand);
-        player.getCooldowns().addCooldown(this, SLAM_COOLDOWN_TICKS);
-        return InteractionResultHolder.sidedSuccess(stack, level.isClientSide);
-    }
-
-    private void performSlam(Level level, Player player, ItemStack stack) {
-        if (!(level instanceof ServerLevel serverLevel)) return;
-
-        Vec3 look = player.getLookAngle();
-        Vec3 origin = player.position();
-        // 前方 SLAM_FORWARD 先の位置を中心に判定 (高さは足元から +2 まで広く取る)
-        Vec3 center = new Vec3(
-            origin.x + look.x * SLAM_FORWARD,
-            origin.y,
-            origin.z + look.z * SLAM_FORWARD
-        );
-
-        AABB area = new AABB(
-            center.x - SLAM_RADIUS, center.y - 1.0, center.z - SLAM_RADIUS,
-            center.x + SLAM_RADIUS, center.y + 2.0, center.z + SLAM_RADIUS
-        );
-
-        int charge = getCharge(stack);
-        int elementLevel = chargeToElementLevel(charge);
-        // 充電なし: 5.0、Lv1: 6.5、Lv2: 8.0、Lv3: 9.5
-        float slamDamage = 5.0f + elementLevel * 1.5f;
-        boolean charged = charge > 0;
-
-        List<LivingEntity> targets = serverLevel.getEntitiesOfClass(
-            LivingEntity.class, area, e -> e != player && e.isAlive());
-
-        for (LivingEntity target : targets) {
-            target.hurt(target.damageSources().playerAttack(player), slamDamage);
-
-            // 中心から外へ + 少し上に持ち上げるノックバック
-            Vec3 diff = target.position().subtract(center);
-            double dist = Math.max(0.001, diff.horizontalDistance());
-            target.push(diff.x / dist * 0.65, 0.45, diff.z / dist * 0.65);
-        }
-
-        // インパクト基本エフェクト (常に出る)
-        serverLevel.sendParticles(
-            ParticleTypes.EXPLOSION,
-            center.x, center.y + 0.3, center.z,
-            3, 0.4, 0.1, 0.4, 0.05);
-        serverLevel.sendParticles(
-            ParticleTypes.CLOUD,
-            center.x, center.y + 0.2, center.z,
-            18, SLAM_RADIUS * 0.5, 0.05, SLAM_RADIUS * 0.5, 0.1);
-
-        serverLevel.playSound(null, center.x, center.y, center.z,
-            SoundEvents.ANVIL_LAND, SoundSource.PLAYERS, 0.35f, 1.3f);
-
-        // 充電あり: 雷エフェクト + 雷鳴音 を追加
-        if (charged) {
-            serverLevel.sendParticles(
-                ParticleTypes.ELECTRIC_SPARK,
-                center.x, center.y + 0.4, center.z,
-                40, SLAM_RADIUS * 0.6, 0.4, SLAM_RADIUS * 0.6, 0.4);
-            serverLevel.playSound(null, center.x, center.y, center.z,
-                SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.PLAYERS, 0.5f, 1.5f);
-        }
-    }
-
     // ==================== 表示 ====================
 
     @Override
@@ -275,8 +177,5 @@ public class VoltaicBladeItem extends SwordItem {
                     "item.backpack_arsenal.voltaic_blade.need_charge_tooltip"
             ).withStyle(ChatFormatting.GRAY));
         }
-        tooltip.add(Component.translatable(
-                "item.backpack_arsenal.voltaic_blade.slam_tooltip"
-        ).withStyle(ChatFormatting.YELLOW));
     }
 }

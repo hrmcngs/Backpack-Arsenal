@@ -5,6 +5,7 @@ import backpackarsenal.event.BackpackChargingHandler;
 import backpackarsenal.init.ArsenalItems;
 import backpackarsenal.network.BackpackArsenalNetwork;
 import backpackarsenal.network.DrawFromBackpackPacket;
+import backpackarsenal.network.SheathToBackpackPacket;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.player.Inventory;
@@ -20,20 +21,20 @@ import net.minecraftforge.items.IItemHandler;
 import the_four_primitives_and_weapons.init.TheFourPrimitivesAndWeaponsModKeyMappings;
 
 /**
- * MAW の R キー (単押し抜刀) を本体より先にフックして、
- * Sophisticated Backpack 内の voltaic_blade があれば優先で引き抜く。
+ * MAW の R キー (単押し抜刀/納刀) を本体より先にフックし、Sophisticated Backpack /
+ * ArsenalBackpack を抜刀/納刀先として優先で扱う。
  *
- * 優先順位制御の仕組み:
+ * 優先順位制御:
  *   - {@code EventPriority.HIGHEST} で {@link TickEvent.ClientTickEvent} を購読
- *   - MAW の listener より前に走り、条件が揃ったときだけ {@code R.consumeClick()} を呼んで
+ *   - MAW listener より前に走り、条件成立時のみ {@code R.consumeClick()} を呼んで
  *     MAW のキー消費を奪う
- *   - 条件が揃わない場合は R を触らず、MAW の通常抜刀 (Curios 鞘) にそのまま流す
+ *   - 条件不成立なら R は触らず MAW の通常抜刀 (Curios 鞘) に流す
  *
- * 条件:
- *   1. 画面 (Screen) が開いていない
- *   2. player が null でない
- *   3. メインハンドに既に voltaic_blade を持っていない
- *   4. プレイヤーインベントリ内のいずれかの Sophisticated Backpack 内に voltaic_blade がある
+ * 2 モード:
+ *   (A) 抜刀 (DRAW)  : メインハンドに voltaic_blade が無い + バックパックに voltaic_blade
+ *                       が居る → バックパックの最初の 1 本をメインハンドへ swap
+ *   (B) 納刀 (SHEATH): メインハンドに voltaic_blade が居る + バックパックに空きがある
+ *                       → メインハンドの voltaic_blade をバックパックの最初の空きスロットへ
  */
 @Mod.EventBusSubscriber(
     modid = BackpackArsenalMod.MODID,
@@ -52,38 +53,55 @@ public class BackpackDrawClient {
         Player player = mc.player;
         if (player == null) return;
 
-        // 既にメインハンドに持っているなら R は通常通り MAW に渡す
-        if (player.getMainHandItem().getItem() == ArsenalItems.VOLTAIC_BLADE.get()) return;
+        boolean handHasBlade = player.getMainHandItem().getItem() == ArsenalItems.VOLTAIC_BLADE.get();
 
-        // バックパック内に voltaic_blade が無いなら R は通常通り MAW に渡す
-        if (!hasVoltaicBladeInAnyBackpack(player)) return;
+        Mode mode;
+        if (handHasBlade && hasEmptyBackpackSlot(player)) {
+            mode = Mode.SHEATH;
+        } else if (!handHasBlade && hasVoltaicBladeInAnyBackpack(player)) {
+            mode = Mode.DRAW;
+        } else {
+            return; // 該当条件無し → R を MAW にそのまま渡す
+        }
 
-        // 条件成立 → R を奪う
         KeyMapping rKey = TheFourPrimitivesAndWeaponsModKeyMappings.R;
         if (rKey == null) return;
 
-        // consumeClick() は 1 回押下イベントを取り出して true を返す。
-        // ここで true → 今 tick で R が押された → サーバへ抜刀リクエスト
-        // ここで false → 押されていない → 何もしない (MAW も拾えないが、そもそも押下イベントが無いので問題なし)
+        // consumeClick(): 1 回押下イベントを取り出して true を返す。
+        // 押下イベントがなければ false (= 今 tick で R は押されていない) → 何もしない。
         if (!rKey.consumeClick()) return;
 
-        BackpackArsenalNetwork.CHANNEL.sendToServer(new DrawFromBackpackPacket());
+        switch (mode) {
+            case DRAW   -> BackpackArsenalNetwork.CHANNEL.sendToServer(new DrawFromBackpackPacket());
+            case SHEATH -> BackpackArsenalNetwork.CHANNEL.sendToServer(new SheathToBackpackPacket());
+        }
     }
+
+    private enum Mode { DRAW, SHEATH }
 
     private static boolean hasVoltaicBladeInAnyBackpack(Player player) {
         Inventory inv = player.getInventory();
         for (int i = 0; i < inv.getContainerSize(); i++) {
             ItemStack stack = inv.getItem(i);
             if (!BackpackChargingHandler.isSophisticatedBackpack(stack)) continue;
-
-            IItemHandler handler = stack
-                .getCapability(ForgeCapabilities.ITEM_HANDLER)
-                .orElse(null);
+            IItemHandler handler = stack.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
             if (handler == null) continue;
-
             for (int s = 0; s < handler.getSlots(); s++) {
-                ItemStack inner = handler.getStackInSlot(s);
-                if (inner.getItem() == ArsenalItems.VOLTAIC_BLADE.get()) return true;
+                if (handler.getStackInSlot(s).getItem() == ArsenalItems.VOLTAIC_BLADE.get()) return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasEmptyBackpackSlot(Player player) {
+        Inventory inv = player.getInventory();
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            ItemStack stack = inv.getItem(i);
+            if (!BackpackChargingHandler.isSophisticatedBackpack(stack)) continue;
+            IItemHandler handler = stack.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
+            if (handler == null) continue;
+            for (int s = 0; s < handler.getSlots(); s++) {
+                if (handler.getStackInSlot(s).isEmpty()) return true;
             }
         }
         return false;

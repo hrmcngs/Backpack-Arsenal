@@ -2,7 +2,9 @@ package backpackarsenal.event;
 
 import backpackarsenal.BackpackArsenalMod;
 import backpackarsenal.init.ArsenalItems;
+import backpackarsenal.inventory.ChargeSlotInventory;
 import backpackarsenal.item.VoltaicBladeItem;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -56,11 +58,33 @@ public class BackpackChargingHandler {
         }
     }
 
-    /** バックパックの中身を走査して ThunderKatana を充電する */
+    /** バックパックの中身 + 専用充電スロットを走査して VoltaicBlade を充電する */
     private static void chargeAllKatanasInside(ItemStack backpackStack, int chargeAmount) {
+        // (1) 通常のインベントリ (SB の IItemHandler)
         backpackStack.getCapability(ForgeCapabilities.ITEM_HANDLER).ifPresent(handler -> {
             chargeKatanasInHandler(handler, chargeAmount);
         });
+        // (2) ArsenalBackpack の専用充電スロット (NBT サブキー)
+        if (backpackStack.getItem() == ArsenalItems.ARSENAL_BACKPACK.get()) {
+            chargeArsenalDedicatedSlot(backpackStack, chargeAmount);
+        }
+    }
+
+    /** ArsenalBackpack の専用スロット (NBT "ArsenalChargeSlot") に入った VoltaicBlade を充電 */
+    private static void chargeArsenalDedicatedSlot(ItemStack backpackStack, int chargeAmount) {
+        CompoundTag tag = backpackStack.getTag();
+        if (tag == null || !tag.contains(ChargeSlotInventory.NBT_KEY, 10)) return;
+
+        ChargeSlotInventory dedicated = new ChargeSlotInventory(backpackStack);
+        ItemStack inSlot = dedicated.getStackInSlot(0);
+        if (inSlot.isEmpty()) return;
+        if (inSlot.getItem() != ArsenalItems.VOLTAIC_BLADE.get()) return;
+
+        int before = VoltaicBladeItem.getCharge(inSlot);
+        if (before >= VoltaicBladeItem.MAX_CHARGE) return;
+        VoltaicBladeItem.addCharge(inSlot, chargeAmount);
+        // ChargeSlotInventory.onContentsChanged → owner NBT 書き戻しのため、明示的に setStackInSlot
+        dedicated.setStackInSlot(0, inSlot);
     }
 
     /** IItemHandler を再帰的に走査（ネストしたバックパックにも対応） */
