@@ -152,6 +152,26 @@ processResources {
     }
 }
 
+// =====================================================================
+// 企業ネット (Cisco Umbrella 等) で TLS 介入されている環境用の workaround。
+// downloadMCMeta task は Mojang への HTTPS で version_manifest を毎回取りに行くが、
+// 介入により Java の TLS handshake が "handshake_failure" で落ちる。
+// build/downloadMCMeta/{manifest.json,version.json} が既にあれば task をスキップする。
+// 事前配置: ~/.gradle/caches/forge_gradle/minecraft_repo/versions/(manifest.json|1.20.1/version.json)
+// から両ファイルを build/downloadMCMeta/ にコピーしておけばよい。
+// =====================================================================
+tasks.matching { it.name == 'downloadMCMeta' }.configureEach {
+    onlyIf {
+        def out = output.get().asFile
+        def man = manifest.get().asFile
+        boolean haveBoth = out.exists() && man.exists()
+        if (haveBoth) {
+            logger.lifecycle("[backpack-arsenal] downloadMCMeta skipped (cached: ${out.parentFile}/{manifest,version}.json)")
+        }
+        return !haveBoth
+    }
+}
+
 sourceSets.main.output.resourcesDir = sourceSets.main.java.classesDirectory
 
 tasks.withType(JavaCompile).configureEach {

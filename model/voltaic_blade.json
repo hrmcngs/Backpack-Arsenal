@@ -493,13 +493,13 @@
 					]
 				},
 				{
-					"name": "柄",
+					"name": "æ",
 					"origin": [8, 8, 8],
 					"scope": 0,
 					"color": 0,
 					"children": [
 						{
-							"name": "グリップ",
+							"name": "ã°ãªãã",
 							"origin": [3.9, 7.4, 12.5],
 							"scope": 0,
 							"color": 0,

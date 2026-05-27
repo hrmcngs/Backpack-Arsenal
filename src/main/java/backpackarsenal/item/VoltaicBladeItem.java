@@ -21,18 +21,8 @@ import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.client.extensions.common.IClientItemExtensions;
-import software.bernie.geckolib.animatable.GeoItem;
-import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
-import software.bernie.geckolib.core.animation.AnimatableManager;
-import software.bernie.geckolib.core.animation.AnimationController;
-import software.bernie.geckolib.core.animation.AnimationState;
-import software.bernie.geckolib.core.animation.RawAnimation;
-import software.bernie.geckolib.core.object.PlayState;
-import software.bernie.geckolib.util.GeckoLibUtil;
 
 import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * Voltaic Blade — 電気属性の刀
@@ -55,7 +45,7 @@ import java.util.function.Consumer;
  *   通常右クリックは MAW の刀ロジック (納刀/抜刀) に PASS。
  *   ダメージは充電 ElementLevel でスケール。充電があれば消費するが無くても撃てる。
  */
-public class VoltaicBladeItem extends SwordItem implements GeoItem {
+public class VoltaicBladeItem extends SwordItem {
 
     public static final String TAG_CHARGE = "BackpackCharge";
     public static final String TAG_ELEMENT_TYPE = "ElementType";
@@ -74,9 +64,6 @@ public class VoltaicBladeItem extends SwordItem implements GeoItem {
     /** 雷叩きつけ — プレイヤー前方どれだけ先に AOE 中心を置くか */
     public static final double SLAM_FORWARD = 1.8;
 
-    /** Geckolib アニメーションインスタンスキャッシュ。 */
-    private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
-
     public VoltaicBladeItem() {
         super(
             new Tier() {
@@ -91,41 +78,6 @@ public class VoltaicBladeItem extends SwordItem implements GeoItem {
             -2.1f,
             new Item.Properties().rarity(Rarity.RARE)
         );
-    }
-
-    // ==================== Geckolib (GeoItem) ====================
-
-    @Override
-    public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
-        controllers.add(new AnimationController<>(this, "idle", 0, this::idlePredicate));
-    }
-
-    private PlayState idlePredicate(AnimationState<VoltaicBladeItem> state) {
-        // animation.voltaic_blade.idle が animation.json に定義されていればループ再生。
-        // 未定義でもエラーにはならない (NOOP)。
-        state.getController().setAnimation(
-            RawAnimation.begin().thenLoop("animation.voltaic_blade.idle"));
-        return PlayState.CONTINUE;
-    }
-
-    @Override
-    public AnimatableInstanceCache getAnimatableInstanceCache() {
-        return cache;
-    }
-
-    @Override
-    public void initializeClient(Consumer<IClientItemExtensions> consumer) {
-        consumer.accept(new IClientItemExtensions() {
-            private backpackarsenal.client.VoltaicBladeRenderer renderer;
-
-            @Override
-            public net.minecraft.client.renderer.BlockEntityWithoutLevelRenderer getCustomRenderer() {
-                if (renderer == null) {
-                    renderer = new backpackarsenal.client.VoltaicBladeRenderer();
-                }
-                return renderer;
-            }
-        });
     }
 
     // ==================== チャージ操作 ====================
