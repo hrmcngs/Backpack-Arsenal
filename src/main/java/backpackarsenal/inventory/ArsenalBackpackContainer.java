@@ -25,9 +25,11 @@ import java.lang.reflect.Field;
  */
 public class ArsenalBackpackContainer extends BackpackContainer {
 
-    /** 充電スロットの座標 (Slot 内部用 — Screen 側もこの座標基準で背景描画) */
+    /** 充電スロットの座標 (Slot 内部用 — Screen 側もこの座標基準で背景描画)。
+     *  upgrade slot 列 (x=-19 付近, y=8..98 で 5 スロット) と重なると不可視になるので、
+     *  upgrade slot 列の下に置く。Y=104 で 5 スロット (y=98 末尾) との間に 6px の隙間。 */
     public static final int CHARGE_SLOT_X = -22;
-    public static final int CHARGE_SLOT_Y = 8;
+    public static final int CHARGE_SLOT_Y = 104;
 
     private final ChargeSlotInventory chargeInventory;
 

@@ -9,10 +9,13 @@ import net.minecraft.world.entity.player.Inventory;
 import net.p3pp3rf1y.sophisticatedbackpacks.client.gui.BackpackScreen;
 
 /**
- * Arsenal Backpack 用 Screen。SB の BackpackScreen を継承し、専用充電スロットの
- * 背景枠を追加描画する。SB のスロット描画は menu.slots を順に回るので、
- * addExtraSlot で足したスロットも自動で描画される。背景画像が無いと
- * スロット枠が描かれず浮いて見えるので、ここで vanilla の slot 背景を上書き描く。
+ * Arsenal Backpack 用 Screen。SB の BackpackScreen を継承し、専用充電スロット背景と
+ * 隣接パネルを上書き描画する。
+ *
+ * 描画順:
+ *   1. renderBg() で vanilla の inventory.png から 18x18 スロット枠を切り出して
+ *      charge slot 位置に描く。スロット内のアイテムは AbstractContainerScreen の
+ *      slot 描画ロジックが renderBg 後に描くので、bg が上に被って消えない。
  */
 public class ArsenalBackpackScreen extends BackpackScreen {
 
@@ -25,8 +28,8 @@ public class ArsenalBackpackScreen extends BackpackScreen {
     }
 
     @Override
-    public void render(GuiGraphics gfx, int mouseX, int mouseY, float partial) {
-        super.render(gfx, mouseX, mouseY, partial);
+    protected void renderBg(GuiGraphics gfx, float partial, int mouseX, int mouseY) {
+        super.renderBg(gfx, partial, mouseX, mouseY);
         drawChargeSlotBackground(gfx);
     }
 

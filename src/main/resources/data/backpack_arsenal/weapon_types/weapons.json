@@ -29,7 +29,8 @@
     "backpack_arsenal:voltaic_blade": {
       "enabled": true,
       "special_motions": {
-        "combat": ["voltaic_slam_down"]
+        "combat": ["voltaic_slam_down"],
+        "right_click": ["voltaic_dodge"]
       }
     }
   }

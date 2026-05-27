@@ -3,6 +3,7 @@ package backpackarsenal;
 import backpackarsenal.init.ArsenalItems;
 import backpackarsenal.network.BackpackArsenalNetwork;
 import backpackarsenal.skill.SlamDownSkillAction;
+import backpackarsenal.skill.VoltaicDodgeSkillAction;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
@@ -39,6 +40,7 @@ public class BackpackArsenalMod {
 
         ArsenalItems.REGISTRY.register(modBus);
         backpackarsenal.init.ArsenalMenuTypes.REGISTRY.register(modBus);
+        backpackarsenal.init.ArsenalCreativeTab.REGISTRY.register(modBus);
         modBus.addListener(this::onCommonSetup);
         modBus.addListener(this::onClientSetup);
 
@@ -82,10 +84,12 @@ public class BackpackArsenalMod {
      *     と motion.requiredWeaponClass を equals() で比較する。
      */
     private void registerSkills() {
+        String weaponClass = backpackarsenal.item.VoltaicBladeItem.class.getSimpleName();
+
         SkillRegistry.register(
             "voltaic_slam_down",
             "雷振り下ろし",
-            "充電に応じて威力が上がる前方AOE叩きつけ。Voltaic Blade 専用。充電があれば 400 消費して雷ダメージ追加。",
+            "充電に応じて威力が上がる前方AOE叩きつけ。Voltaic Blade 専用。充電あり時は AOE 中心へ模擬落雷も降ろす。",
             SkillRegistry.MotionCategory.SPECIAL,
             EnumSet.of(
                 PlayerSkillData.AttackSlot.FIRST_HIT,
@@ -93,9 +97,20 @@ public class BackpackArsenalMod {
                 PlayerSkillData.AttackSlot.THIRD_HIT,
                 PlayerSkillData.AttackSlot.CHARGED
             ),
-            backpackarsenal.item.VoltaicBladeItem.class.getSimpleName(),
+            weaponClass,
             new SlamDownSkillAction()
         );
-        LOGGER.info("[{}] Registered MAW motion 'voltaic_slam_down' (雷振り下ろし) for VoltaicBladeItem", MODID);
+
+        SkillRegistry.register(
+            "voltaic_dodge",
+            "雷影回避",
+            "後方へクイックダッシュ + 1秒間無敵 + 電気スパーク。Voltaic Blade 専用 (right-click スロットに割当)。",
+            SkillRegistry.MotionCategory.SPECIAL,
+            EnumSet.of(PlayerSkillData.AttackSlot.RIGHT_CLICK),
+            weaponClass,
+            new VoltaicDodgeSkillAction()
+        );
+
+        LOGGER.info("[{}] Registered MAW motions: voltaic_slam_down, voltaic_dodge (VoltaicBladeItem)", MODID);
     }
 }

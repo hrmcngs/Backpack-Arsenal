@@ -1,9 +1,16 @@
 {
+  "itemGroup.backpack_arsenal.main": "Backpack Arsenal",
   "item.backpack_arsenal.voltaic_blade": "Voltaic Blade",
   "item.backpack_arsenal.voltaic_blade.charge_tooltip": "§bCharge: %s / %s",
   "item.backpack_arsenal.voltaic_blade.element_tooltip": "§dElectric Lv %s (charged)",
   "item.backpack_arsenal.voltaic_blade.need_charge_tooltip": "§7Sheath into a Sophisticated Backpack to charge",
   "item.backpack_arsenal.arsenal_backpack": "Arsenal Backpack",
+  "item.backpack_arsenal.arsenal_backpack.stored": "§bSheathed: %s (%s / %s)",
+  "item.backpack_arsenal.arsenal_backpack.stored_regular": "§7Stored in pockets: %s blade(s)",
+  "item.backpack_arsenal.voltaic_charger_upgrade": "Voltaic Charger Upgrade",
+  "item.backpack_arsenal.voltaic_charger_upgrade.tooltip": "§7Install in backpack upgrade slots to multiply voltaic_blade charge rate (1=2x, 2=3x, max 3)",
   "motion.the_four_primitives_and_weapons.voltaic_slam_down": "Voltaic Slam",
-  "motion.the_four_primitives_and_weapons.voltaic_slam_down.desc": "Forward AOE slam. Voltaic Blade only; consumes 400 charge for added electric damage."
+  "motion.the_four_primitives_and_weapons.voltaic_slam_down.desc": "Forward AOE slam. Voltaic Blade only; when charged, also calls a simulated lightning bolt at the AOE center.",
+  "motion.the_four_primitives_and_weapons.voltaic_dodge": "Voltaic Dodge",
+  "motion.the_four_primitives_and_weapons.voltaic_dodge.desc": "Quick backward dash with 1s invulnerability and electric sparks. Voltaic Blade only (right-click slot)."
 }

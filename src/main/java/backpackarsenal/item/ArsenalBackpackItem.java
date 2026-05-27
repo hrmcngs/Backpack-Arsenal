@@ -1,6 +1,11 @@
 package backpackarsenal.item;
 
+import backpackarsenal.init.ArsenalItems;
 import backpackarsenal.inventory.ArsenalBackpackContainer;
+import backpackarsenal.inventory.ChargeSlotInventory;
+import net.minecraft.ChatFormatting;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
@@ -9,13 +14,17 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Rarity;
+import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.Level;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.network.NetworkHooks;
 import net.p3pp3rf1y.sophisticatedbackpacks.backpack.BackpackBlock;
 import net.p3pp3rf1y.sophisticatedbackpacks.backpack.BackpackItem;
 import net.p3pp3rf1y.sophisticatedbackpacks.common.gui.BackpackContext;
 import net.p3pp3rf1y.sophisticatedbackpacks.init.ModBlocks;
 
+import java.util.List;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -89,6 +98,61 @@ public class ArsenalBackpackItem extends BackpackItem {
                 return sbCap;
             }
         };
+    }
+
+    /**
+     * インベントリでホバー時に納刀中の voltaic_blade を表示する (通常鞘相当)。
+     * - 充電スロット (専用) の中身
+     * - 通常スロット内の voltaic_blade 本数
+     */
+    @Override
+    public void appendHoverText(ItemStack stack, Level level, List<Component> tooltip, TooltipFlag flag) {
+        super.appendHoverText(stack, level, tooltip, flag);
+
+        // (1) 充電スロット
+        ItemStack stored = readDedicatedSlot(stack);
+        if (!stored.isEmpty() && stored.getItem() == ArsenalItems.VOLTAIC_BLADE.get()) {
+            int charge = VoltaicBladeItem.getCharge(stored);
+            int max = VoltaicBladeItem.getMaxCharge(stored);
+            tooltip.add(Component.translatable(
+                    "item.backpack_arsenal.arsenal_backpack.stored",
+                    stored.getHoverName(), charge, max
+            ).withStyle(ChatFormatting.AQUA));
+        }
+
+        // (2) 通常スロット内の voltaic_blade 本数
+        int countInRegular = countVoltaicInRegularSlots(stack);
+        if (countInRegular > 0) {
+            tooltip.add(Component.translatable(
+                    "item.backpack_arsenal.arsenal_backpack.stored_regular",
+                    countInRegular
+            ).withStyle(ChatFormatting.GRAY));
+        }
+    }
+
+    /** NBT 直読みで充電スロットの ItemStack を取得する (ChargeSlotInventory の副作用を避ける用)。 */
+    private static ItemStack readDedicatedSlot(ItemStack backpack) {
+        CompoundTag tag = backpack.getTag();
+        if (tag == null || !tag.contains(ChargeSlotInventory.NBT_KEY, 10)) return ItemStack.EMPTY;
+        CompoundTag slotTag = tag.getCompound(ChargeSlotInventory.NBT_KEY);
+        // ItemStackHandler.serializeNBT() は "Items" リストに各スロットを格納
+        if (!slotTag.contains("Items", 9)) return ItemStack.EMPTY;
+        var items = slotTag.getList("Items", 10);
+        if (items.isEmpty()) return ItemStack.EMPTY;
+        return ItemStack.of(items.getCompound(0));
+    }
+
+    /** バックパック内の通常スロットに入っている voltaic_blade の本数を数える。 */
+    private static int countVoltaicInRegularSlots(ItemStack backpack) {
+        IItemHandler handler = backpack.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
+        if (handler == null) return 0;
+        int count = 0;
+        for (int i = 0; i < handler.getSlots(); i++) {
+            if (handler.getStackInSlot(i).getItem() == ArsenalItems.VOLTAIC_BLADE.get()) {
+                count++;
+            }
+        }
+        return count;
     }
 
     /**

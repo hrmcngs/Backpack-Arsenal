@@ -1,40 +1,59 @@
 package backpackarsenal.client;
 
 import backpackarsenal.BackpackArsenalMod;
-import backpackarsenal.event.BackpackChargingHandler;
 import backpackarsenal.init.ArsenalItems;
+import backpackarsenal.inventory.ChargeSlotInventory;
 import backpackarsenal.network.BackpackArsenalNetwork;
 import backpackarsenal.network.DrawFromBackpackPacket;
 import backpackarsenal.network.SheathToBackpackPacket;
-import net.minecraft.client.KeyMapping;
+import backpackarsenal.util.BackpackScanner;
 import net.minecraft.client.Minecraft;
-import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.items.IItemHandler;
-import the_four_primitives_and_weapons.init.TheFourPrimitivesAndWeaponsModKeyMappings;
+import org.lwjgl.glfw.GLFW;
+import the_four_primitives_and_weapons.client.WeaponWheelState;
+
+import java.lang.reflect.Field;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * MAW の R キー (単押し抜刀/納刀) を本体より先にフックし、Sophisticated Backpack /
- * ArsenalBackpack を抜刀/納刀先として優先で扱う。
+ * MAW R キーをフックし、ArsenalBackpack を抜刀/納刀先として優先扱うクライアントハンドラ。
  *
- * 優先順位制御:
- *   - {@code EventPriority.HIGHEST} で {@link TickEvent.ClientTickEvent} を購読
- *   - MAW listener より前に走り、条件成立時のみ {@code R.consumeClick()} を呼んで
- *     MAW のキー消費を奪う
- *   - 条件不成立なら R は触らず MAW の通常抜刀 (Curios 鞘) に流す
+ * 走査対象: プレイヤー inventory + Curios "back" スロット の ArsenalBackpack 限定
+ * (バニラ SB バックパックは対象外)。
  *
  * 2 モード:
- *   (A) 抜刀 (DRAW)  : メインハンドに voltaic_blade が無い + バックパックに voltaic_blade
- *                       が居る → バックパックの最初の 1 本をメインハンドへ swap
- *   (B) 納刀 (SHEATH): メインハンドに voltaic_blade が居る + バックパックに空きがある
- *                       → メインハンドの voltaic_blade をバックパックの最初の空きスロットへ
+ *   (A) 抜刀 (DRAW)  : メインハンドが空 + ArsenalBackpack のどこかに voltaic_blade あり
+ *                       → DrawFromBackpackPacket
+ *   (B) 納刀 (SHEATH): メインハンドに voltaic_blade あり + ArsenalBackpack に空きあり
+ *                       → SheathToBackpackPacket
+ *
+ * <h2>長押しと短押しの分岐 (InputEvent.Key release で判定)</h2>
+ *
+ * MAW の R KeyMapping は setDown() で即時に WeaponWheelState.rKeyDown=true を立て、
+ * release 時に RMessage(0,0) を送って Curios の saya (belt/back) に勝手に納刀してしまう。
+ * 一方で 0.5秒以上押し続けると MAW の wheel が開く設計。両立させるため、release を
+ * Forge {@link InputEvent.Key} で先取りして以下のように分岐:
+ *
+ * <ul>
+ *   <li><b>短押し</b> (経過 &lt; 500ms): wheel は出ていない。MAW の rKeyDown を false にして
+ *       onRKeyReleased() の RMessage(0,0) を抑止し、我々が DRAW/SHEATH packet を直接送る。</li>
+ *   <li><b>長押し + 選択あり</b>: wheel が出ていて selectedIndex≥0。MAW の選択結果に任せる
+ *       (MAW packet は自前の輪っかから来た saya エントリを処理し、{@link VoltaicBladeWheelInjector}
+ *       が注入した backpack エントリは閉じ tick で別パケットを送る)。</li>
+ *   <li><b>長押し + デッドゾーン</b>: wheel が出ていて selectedIndex&lt;0。RMessage(0,0) を
+ *       抑止するため rKeyDown=false にする (saya への自動納刀を回避)。</li>
+ * </ul>
+ *
+ * InputEvent.Key は KeyMapping.setDown() より前に発火するため、release 直後の MAW の
+ * onRKeyReleased() を rKeyDown=false で no-op 化できる。
  */
 @Mod.EventBusSubscriber(
     modid = BackpackArsenalMod.MODID,
@@ -43,67 +62,138 @@ import the_four_primitives_and_weapons.init.TheFourPrimitivesAndWeaponsModKeyMap
 )
 public class BackpackDrawClient {
 
-    @SubscribeEvent(priority = EventPriority.HIGHEST)
-    public static void onClientTick(TickEvent.ClientTickEvent event) {
-        if (event.phase != TickEvent.Phase.END) return;
+    /** MAW の WheelState が長押しと判定するしきい値と同じ値 (500ms)。 */
+    private static final long LONG_PRESS_THRESHOLD_MS = 500L;
 
+    /** R が押された時刻 (millis)。release で経過時間判定に使う。 */
+    private static long pressStartTime = 0L;
+
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public static void onKey(InputEvent.Key event) {
+        if (event.getKey() != GLFW.GLFW_KEY_R) return;
+        // R は MAW の KeyMapping が握っているので、ここでは press/release の時刻と
+        // release 時の MAW 抑止だけを担当する。consumeClick() は触らない。
+        if (event.getAction() == GLFW.GLFW_PRESS) {
+            pressStartTime = System.currentTimeMillis();
+        } else if (event.getAction() == GLFW.GLFW_RELEASE) {
+            handleRelease();
+        }
+    }
+
+    private static void handleRelease() {
         Minecraft mc = Minecraft.getInstance();
         if (mc.screen != null) return;
 
         Player player = mc.player;
         if (player == null) return;
 
-        boolean handHasBlade = player.getMainHandItem().getItem() == ArsenalItems.VOLTAIC_BLADE.get();
+        Mode mode = determineMode(player);
+        if (mode == null) return;  // 我々が扱う条件ではない → MAW にそのまま任せる
 
-        Mode mode;
-        if (handHasBlade && hasEmptyBackpackSlot(player)) {
-            mode = Mode.SHEATH;
-        } else if (!handHasBlade && hasVoltaicBladeInAnyBackpack(player)) {
-            mode = Mode.DRAW;
-        } else {
-            return; // 該当条件無し → R を MAW にそのまま渡す
+        long elapsed = System.currentTimeMillis() - pressStartTime;
+        boolean isLongPress = elapsed >= LONG_PRESS_THRESHOLD_MS;
+        boolean wheelWasVisible = WeaponWheelState.isWheelVisible();
+        int selectedIndex = WeaponWheelState.getSelectedIndex();
+
+        if (isLongPress && wheelWasVisible) {
+            if (selectedIndex < 0) {
+                // 長押し → wheel 開いた → デッドゾーンで離した。
+                // MAW の RMessage(0,0) (=saya 自動納刀) を抑止するだけで、我々も packet 送らない。
+                killMawRState();
+            }
+            // 選択あり: VoltaicBladeWheelInjector.handleWheelClosed() が次 tick で処理。
+            // ここでは何もしない (rKeyDown も触らない)。
+            return;
         }
 
-        KeyMapping rKey = TheFourPrimitivesAndWeaponsModKeyMappings.R;
-        if (rKey == null) return;
-
-        // consumeClick(): 1 回押下イベントを取り出して true を返す。
-        // 押下イベントがなければ false (= 今 tick で R は押されていない) → 何もしない。
-        if (!rKey.consumeClick()) return;
-
+        // 短押し (or wheel 未表示で release): MAW を抑止して我々の packet を送信。
+        killMawRState();
         switch (mode) {
             case DRAW   -> BackpackArsenalNetwork.CHANNEL.sendToServer(new DrawFromBackpackPacket());
             case SHEATH -> BackpackArsenalNetwork.CHANNEL.sendToServer(new SheathToBackpackPacket());
         }
     }
 
-    private enum Mode { DRAW, SHEATH }
-
-    private static boolean hasVoltaicBladeInAnyBackpack(Player player) {
-        Inventory inv = player.getInventory();
-        for (int i = 0; i < inv.getContainerSize(); i++) {
-            ItemStack stack = inv.getItem(i);
-            if (!BackpackChargingHandler.isSophisticatedBackpack(stack)) continue;
-            IItemHandler handler = stack.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
-            if (handler == null) continue;
-            for (int s = 0; s < handler.getSlots(); s++) {
-                if (handler.getStackInSlot(s).getItem() == ArsenalItems.VOLTAIC_BLADE.get()) return true;
-            }
+    private static Mode determineMode(Player player) {
+        ItemStack mainHand = player.getMainHandItem();
+        if (mainHand.getItem() == ArsenalItems.VOLTAIC_BLADE.get() && hasEmptyArsenalSlot(player)) {
+            return Mode.SHEATH;
         }
-        return false;
+        if (mainHand.isEmpty() && hasVoltaicBladeInAnyArsenal(player)) {
+            return Mode.DRAW;
+        }
+        return null;
     }
 
-    private static boolean hasEmptyBackpackSlot(Player player) {
-        Inventory inv = player.getInventory();
-        for (int i = 0; i < inv.getContainerSize(); i++) {
-            ItemStack stack = inv.getItem(i);
-            if (!BackpackChargingHandler.isSophisticatedBackpack(stack)) continue;
-            IItemHandler handler = stack.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
-            if (handler == null) continue;
-            for (int s = 0; s < handler.getSlots(); s++) {
-                if (handler.getStackInSlot(s).isEmpty()) return true;
+    private enum Mode { DRAW, SHEATH }
+
+    // --- MAW WeaponWheelState.rKeyDown を reflection で false に倒すヘルパ ---
+    // setDown(false) → MAW.onRKeyReleased() が呼ばれる「前」に rKeyDown を false にすれば、
+    // onRKeyReleased() は早期 return し RMessage(0,0) を送らない。
+    private static Field rKeyDownField;
+    private static boolean reflectionAttempted = false;
+
+    private static void killMawRState() {
+        if (!reflectionAttempted) {
+            reflectionAttempted = true;
+            try {
+                rKeyDownField = WeaponWheelState.class.getDeclaredField("rKeyDown");
+                rKeyDownField.setAccessible(true);
+            } catch (Throwable t) {
+                rKeyDownField = null;
             }
         }
-        return false;
+        if (rKeyDownField == null) return;
+        try {
+            rKeyDownField.set(null, false);
+        } catch (Throwable ignored) {
+            // 失敗してもクラッシュさせない
+        }
+    }
+
+    private static boolean hasVoltaicBladeInAnyArsenal(Player player) {
+        AtomicBoolean found = new AtomicBoolean(false);
+        BackpackScanner.forEachArsenalBackpack(player, backpackStack -> {
+            if (found.get()) return;
+            // 専用充電スロット
+            if (new ChargeSlotInventory(backpackStack).getStackInSlot(0).getItem()
+                    == ArsenalItems.VOLTAIC_BLADE.get()) {
+                found.set(true);
+                return;
+            }
+            // 通常スロット
+            IItemHandler h = backpackStack.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
+            if (h == null) return;
+            for (int s = 0; s < h.getSlots(); s++) {
+                if (h.getStackInSlot(s).getItem() == ArsenalItems.VOLTAIC_BLADE.get()) {
+                    found.set(true);
+                    return;
+                }
+            }
+        });
+        return found.get();
+    }
+
+    private static boolean hasEmptyArsenalSlot(Player player) {
+        AtomicBoolean found = new AtomicBoolean(false);
+        BackpackScanner.forEachArsenalBackpack(player, backpackStack -> {
+            if (found.get()) return;
+            // 専用充電スロット空き
+            if (new ChargeSlotInventory(backpackStack).getStackInSlot(0).isEmpty()) {
+                found.set(true);
+                return;
+            }
+            // 通常スロット空き
+            IItemHandler h = backpackStack.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
+            if (h == null) return;
+            for (int s = 0; s < h.getSlots(); s++) {
+                ItemStack item = h.getStackInSlot(s);
+                if (item.isEmpty()) {
+                    found.set(true);
+                    return;
+                }
+            }
+        });
+        return found.get();
     }
 }

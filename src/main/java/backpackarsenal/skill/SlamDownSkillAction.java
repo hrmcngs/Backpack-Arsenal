@@ -5,6 +5,8 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LightningBolt;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -39,7 +41,7 @@ public class SlamDownSkillAction implements ISkillAction {
         ItemStack held = player.getMainHandItem();
         int elementLevel = 0;
         if (held.getItem() instanceof VoltaicBladeItem) {
-            elementLevel = VoltaicBladeItem.chargeToElementLevel(VoltaicBladeItem.getCharge(held));
+            elementLevel = VoltaicBladeItem.chargeToElementLevel(held);
             // 充電があれば消費 (VoltaicBladeItem#use() と同じ消費量)
             int charge = VoltaicBladeItem.getCharge(held);
             if (charge > 0) {
@@ -81,12 +83,22 @@ public class SlamDownSkillAction implements ISkillAction {
         serverLevel.playSound(null, center.x, center.y, center.z,
             SoundEvents.ANVIL_LAND, SoundSource.PLAYERS, 0.35f, 1.3f);
 
-        // 充電あり: 雷スパーク + 雷鳴音
+        // 充電あり: 雷スパーク + 雷鳴音 + 模擬落雷 (visual only — 着火しない)
         if (elementLevel > 0) {
             serverLevel.sendParticles(ParticleTypes.ELECTRIC_SPARK,
                 center.x, center.y + 0.4, center.z, 40, SLAM_RADIUS * 0.6, 0.4, SLAM_RADIUS * 0.6, 0.4);
             serverLevel.playSound(null, center.x, center.y, center.z,
                 SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.PLAYERS, 0.5f, 1.5f);
+            summonSimulatedLightning(serverLevel, center);
         }
+    }
+
+    /** AOE 中心に視覚のみの落雷を降ろす (火災・ダメージ無し、見た目+音だけ)。 */
+    private void summonSimulatedLightning(ServerLevel serverLevel, Vec3 center) {
+        LightningBolt bolt = EntityType.LIGHTNING_BOLT.create(serverLevel);
+        if (bolt == null) return;
+        bolt.moveTo(center.x, center.y, center.z);
+        bolt.setVisualOnly(true); // ダメージ・着火を無効化
+        serverLevel.addFreshEntity(bolt);
     }
 }

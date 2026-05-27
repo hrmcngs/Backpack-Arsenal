@@ -1,9 +1,16 @@
 {
+  "itemGroup.backpack_arsenal.main": "バックパック・アーセナル",
   "item.backpack_arsenal.voltaic_blade": "ボルタイック・ブレード",
   "item.backpack_arsenal.voltaic_blade.charge_tooltip": "§b充電: %s / %s",
   "item.backpack_arsenal.voltaic_blade.element_tooltip": "§d電気属性 Lv %s（発動中）",
   "item.backpack_arsenal.voltaic_blade.need_charge_tooltip": "§7Sophisticated Backpack に納刀して充電してください",
   "item.backpack_arsenal.arsenal_backpack": "アーセナル・バックパック",
+  "item.backpack_arsenal.arsenal_backpack.stored": "§b納刀中: %s (%s / %s)",
+  "item.backpack_arsenal.arsenal_backpack.stored_regular": "§7ポケット収納: %s 本",
+  "item.backpack_arsenal.voltaic_charger_upgrade": "雷光チャージャー・アップグレード",
+  "item.backpack_arsenal.voltaic_charger_upgrade.tooltip": "§7backpack のアップグレードスロットに挿すと voltaic_blade の充電速度が枚数だけ倍率アップ (1枚=2倍、2枚=3倍、最大3枚)",
   "motion.the_four_primitives_and_weapons.voltaic_slam_down": "雷振り下ろし",
-  "motion.the_four_primitives_and_weapons.voltaic_slam_down.desc": "充電量に応じて威力が上がる前方AOE叩きつけ。Voltaic Blade 専用、充電があれば400消費して雷ダメ追加。"
+  "motion.the_four_primitives_and_weapons.voltaic_slam_down.desc": "充電量に応じて威力が上がる前方AOE叩きつけ。Voltaic Blade 専用。充電あり時は AOE 中心に模擬落雷も降ろす。",
+  "motion.the_four_primitives_and_weapons.voltaic_dodge": "雷影回避",
+  "motion.the_four_primitives_and_weapons.voltaic_dodge.desc": "後方へクイックダッシュ + 1秒間無敵 + 電気スパーク。Voltaic Blade 専用 (right-click スロット)。"
 }

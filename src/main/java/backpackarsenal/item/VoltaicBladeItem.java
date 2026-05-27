@@ -17,6 +17,7 @@ import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.Tier;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.level.Level;
+import the_four_primitives_and_weapons.item.rarity.WeaponRarity;
 
 import java.util.List;
 
@@ -28,12 +29,19 @@ import java.util.List;
  * 充電量に応じて MAW の電気属性 (ElementType="ELECTRIC", ElementLevel=N) が
  * 自動付与される。攻撃時に充電を消費する。
  *
- * チャージ→ElementLevel 対応:
- *   0       …… 無属性
- *   1 〜 999 …… ElementLevel 1
- *   1000以上 …… ElementLevel 2
- *   3000以上 …… ElementLevel 3
- *   最大値: 6000 (MAX_CHARGE)
+ * チャージ→ElementLevel 対応 (maxCharge に対する割合で判定、レアリティに依存):
+ *   0           …… 無属性
+ *   ≥ 1         …… ElementLevel 1
+ *   ≥ max / 6   …… ElementLevel 2
+ *   ≥ max / 2   …… ElementLevel 3
+ *
+ * 最大チャージ (MAW WeaponRarity 連動):
+ *   COMMON / unset …… 1024
+ *   UNCOMMON       …… 2048
+ *   RARE           …… 4096
+ *   EPIC           …… 6144
+ *   LEGENDARY      …… 8192
+ *   FORBIDDEN      …… 12288
  * 1ヒット消費: 200
  *
  * 例外特技: 雷振り下ろし (voltaic_slam_down)
@@ -48,7 +56,8 @@ public class VoltaicBladeItem extends SwordItem {
     public static final String TAG_ELEMENT_TYPE = "ElementType";
     public static final String TAG_ELEMENT_LEVEL = "ElementLevel";
 
-    public static final int MAX_CHARGE = 6000;
+    /** レアリティ未設定 / COMMON 時の基準値。getMaxCharge() の出発点。 */
+    public static final int BASE_MAX_CHARGE = 1024;
     public static final int CHARGE_COST_PER_HIT = 200;
     public static final int CHARGE_PER_TICK_IN_BACKPACK = 2;
     // 雷振り下ろし の数値は SlamDownSkillAction 側に定義 (MAW Skill Selection 経由でのみ発動)。
@@ -71,17 +80,36 @@ public class VoltaicBladeItem extends SwordItem {
 
     // ==================== チャージ操作 ====================
 
+    /**
+     * MAW の WeaponRarity に応じた最大チャージ。レアリティ未設定 = COMMON 扱い。
+     * RarityForge でレアリティが上がると最大チャージも段階的に増える。
+     */
+    public static int getMaxCharge(ItemStack stack) {
+        WeaponRarity rarity = WeaponRarity.getFromStack(stack);
+        if (rarity == null) return BASE_MAX_CHARGE;
+        switch (rarity) {
+            case UNCOMMON:  return 2048;
+            case RARE:      return 4096;
+            case EPIC:      return 6144;
+            case LEGENDARY: return 8192;
+            case FORBIDDEN: return 12288;
+            case COMMON:
+            default:        return BASE_MAX_CHARGE;
+        }
+    }
+
     public static int getCharge(ItemStack stack) {
         CompoundTag tag = stack.getTag();
         return tag == null ? 0 : tag.getInt(TAG_CHARGE);
     }
 
     public static void setCharge(ItemStack stack, int charge) {
-        int clamped = Math.max(0, Math.min(MAX_CHARGE, charge));
+        int max = getMaxCharge(stack);
+        int clamped = Math.max(0, Math.min(max, charge));
         CompoundTag tag = stack.getOrCreateTag();
         tag.putInt(TAG_CHARGE, clamped);
 
-        int level = chargeToElementLevel(clamped);
+        int level = chargeToElementLevel(clamped, max);
         if (level > 0) {
             tag.putString(TAG_ELEMENT_TYPE, "ELECTRIC");
             tag.putInt(TAG_ELEMENT_LEVEL, level);
@@ -91,11 +119,18 @@ public class VoltaicBladeItem extends SwordItem {
         }
     }
 
-    public static int chargeToElementLevel(int charge) {
-        if (charge >= 3000) return 3;
-        if (charge >= 1000) return 2;
-        if (charge >= 1)    return 1;
+    /** Element level (1〜3) を max に対する充電割合で算出。 */
+    public static int chargeToElementLevel(int charge, int maxCharge) {
+        if (maxCharge <= 0) return 0;
+        if (charge >= maxCharge / 2) return 3;
+        if (charge >= maxCharge / 6) return 2;
+        if (charge >= 1)             return 1;
         return 0;
+    }
+
+    /** Stack の rarity を読んで element level を返す便宜メソッド。 */
+    public static int chargeToElementLevel(ItemStack stack) {
+        return chargeToElementLevel(getCharge(stack), getMaxCharge(stack));
     }
 
     public static void addCharge(ItemStack stack, int delta) {
@@ -147,12 +182,15 @@ public class VoltaicBladeItem extends SwordItem {
 
     @Override
     public int getBarWidth(ItemStack stack) {
-        return Math.round(13.0f * getCharge(stack) / (float) MAX_CHARGE);
+        int max = getMaxCharge(stack);
+        if (max <= 0) return 0;
+        return Math.round(13.0f * getCharge(stack) / (float) max);
     }
 
     @Override
     public int getBarColor(ItemStack stack) {
-        float ratio = getCharge(stack) / (float) MAX_CHARGE;
+        int max = getMaxCharge(stack);
+        float ratio = max <= 0 ? 0f : getCharge(stack) / (float) max;
         int r = 0x55 + Math.round(0xAA * ratio);
         int g = 0x88 + Math.round(0x77 * ratio);
         int b = 0xFF;
@@ -163,10 +201,11 @@ public class VoltaicBladeItem extends SwordItem {
     public void appendHoverText(ItemStack stack, Level level, List<Component> tooltip, TooltipFlag flag) {
         super.appendHoverText(stack, level, tooltip, flag);
         int charge = getCharge(stack);
-        int lv = chargeToElementLevel(charge);
+        int max = getMaxCharge(stack);
+        int lv = chargeToElementLevel(charge, max);
         tooltip.add(Component.translatable(
                 "item.backpack_arsenal.voltaic_blade.charge_tooltip",
-                charge, MAX_CHARGE
+                charge, max
         ).withStyle(ChatFormatting.AQUA));
         if (lv > 0) {
             tooltip.add(Component.translatable(

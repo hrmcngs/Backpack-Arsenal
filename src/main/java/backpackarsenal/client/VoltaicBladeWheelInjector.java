@@ -1,12 +1,13 @@
 package backpackarsenal.client;
 
 import backpackarsenal.BackpackArsenalMod;
-import backpackarsenal.event.BackpackChargingHandler;
 import backpackarsenal.init.ArsenalItems;
+import backpackarsenal.inventory.ChargeSlotInventory;
 import backpackarsenal.network.BackpackArsenalNetwork;
 import backpackarsenal.network.DrawFromBackpackPacket;
+import backpackarsenal.network.SheathToBackpackPacket;
+import backpackarsenal.util.BackpackScanner;
 import net.minecraft.client.Minecraft;
-import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.api.distmarker.Dist;
@@ -24,20 +25,21 @@ import java.util.IdentityHashMap;
 import java.util.List;
 
 /**
- * MAW Weapon Wheel UI に Sophisticated Backpack/ArsenalBackpack 内の voltaic_blade を
- * 視覚的に注入する。
+ * MAW Weapon Wheel に Arsenal Backpack のエントリを注入する。
  *
- * 動作:
- *   1) 毎 ClientTickEvent (NORMAL priority — MAW の tick より後) に走る
- *   2) wheel が見えている間、reflection で drawableWeapons 静的フィールドにアクセス
- *   3) 各バックパック内の voltaic_blade を DrawableWeaponInfo(INVENTORY) として list に追加
- *   4) wheel が閉じる遷移を検出し、選択 index が我々の注入分を指していたら
- *      DrawFromBackpackPacket をサーバへ送って実際に抜刀
+ * フィルタ: ArsenalBackpack のみ (バニラ SB の通常 backpack は表示しない)。
  *
- * 注意: MAW 側の sendPacket() も並行で発火するが、location=INVENTORY + slotIndex が
- * 「バックパック本体の player inventory スロット」なので server 側で
- * drawFromInventory(player, slot) が呼ばれて「バックパック自体を武器として draw」
- * しようとし、対応武器型でないので silent no-op する想定。
+ * 動作 (WheelMode に応じて切替):
+ *   DRAW   — 各 ArsenalBackpack 内の voltaic_blade を引き抜き候補として表示
+ *   SHEATH — 空きのある各 ArsenalBackpack を収納先として表示 (プレイヤーが手に voltaic_blade を
+ *            持っている前提)
+ *
+ * 選択時動作: wheel 閉じ遷移を検出 → 選択 index が我々の注入分なら
+ *   DRAW  → DrawFromBackpackPacket
+ *   SHEATH → SheathToBackpackPacket
+ *
+ * R 短押し (BackpackDrawClient) は wheel を介さずに直接 packet を発行するので
+ * 「短押し優先で収納」が機能する。長押し時にだけ wheel が出る。
  */
 @Mod.EventBusSubscriber(
     modid = BackpackArsenalMod.MODID,
@@ -47,13 +49,15 @@ import java.util.List;
 public class VoltaicBladeWheelInjector {
 
     private static boolean wheelWasVisible = false;
-    /** 前 tick で注入したエントリ。wheel 終了時の選択検出に使う。 */
+    /** 前 tick で我々が注入したエントリ群 (IdentityHashMap で参照同一性) */
     private static final IdentityHashMap<CuriosScabbardHelper.DrawableWeaponInfo, Boolean>
         injectedEntries = new IdentityHashMap<>();
-    /** 前 tick の選択 index (wheel 閉じ後にリセットされる前に保存) */
+    /** wheel 閉じ後 reset される前の最終選択 index */
     private static int lastSelectedIndex = -1;
-    /** 前 tick の drawableWeapons リスト参照 (閉じ後の検出用) */
+    /** wheel 閉じ後 reset される前の最終 list 参照 */
     private static List<CuriosScabbardHelper.DrawableWeaponInfo> lastList = null;
+    /** wheel 閉じ後 reset される前の最終モード (DRAW/SHEATH) */
+    private static WeaponWheelState.WheelMode lastMode = null;
 
     @SubscribeEvent(priority = EventPriority.LOW)
     public static void onClientTick(TickEvent.ClientTickEvent event) {
@@ -63,19 +67,19 @@ public class VoltaicBladeWheelInjector {
 
         boolean visible = WeaponWheelState.isWheelVisible();
         if (visible) {
-            injectEntries(mc.player);
-            // 選択 index を毎 tick 控えておく (wheel 閉じる時には reset されてる)
+            WeaponWheelState.WheelMode mode = WeaponWheelState.getCurrentMode();
+            injectEntries(mc.player, mode);
             lastSelectedIndex = WeaponWheelState.getSelectedIndex();
             lastList = WeaponWheelState.getDrawableWeapons();
+            lastMode = mode;
         } else if (wheelWasVisible) {
-            // 直前の tick まで wheel が見えていて、今閉じた → 選択処理
             handleWheelClosed();
         }
         wheelWasVisible = visible;
     }
 
-    /** drawableWeapons リストにバックパック内 voltaic_blade を追加する。重複は避ける。 */
-    private static void injectEntries(Player player) {
+    /** wheel に Arsenal Backpack 関連エントリを注入。重複は毎 tick 作り直し。 */
+    private static void injectEntries(Player player, WeaponWheelState.WheelMode mode) {
         try {
             Field f = WeaponWheelState.class.getDeclaredField("drawableWeapons");
             f.setAccessible(true);
@@ -84,58 +88,106 @@ public class VoltaicBladeWheelInjector {
                 (List<CuriosScabbardHelper.DrawableWeaponInfo>) f.get(null);
             if (list == null) return;
 
-            // 既に注入済みエントリは保持、無くなった backpack の分は外す
-            // 毎 tick 全注入を作り直すのが単純なので、まず injectedEntries の分を list から除去
+            // 前 tick の注入を一旦除去 (毎 tick リフレッシュ)
             list.removeIf(injectedEntries::containsKey);
             injectedEntries.clear();
 
-            Inventory inv = player.getInventory();
-            for (int i = 0; i < inv.getContainerSize(); i++) {
-                ItemStack backpackStack = inv.getItem(i);
-                if (!BackpackChargingHandler.isSophisticatedBackpack(backpackStack)) continue;
-
+            BackpackScanner.forEachArsenalBackpackWithSource(player, (backpackStack, source) -> {
                 IItemHandler handler = backpackStack
                     .getCapability(ForgeCapabilities.ITEM_HANDLER)
                     .orElse(null);
-                if (handler == null) continue;
-                for (int s = 0; s < handler.getSlots(); s++) {
-                    ItemStack inner = handler.getStackInSlot(s);
-                    if (inner.getItem() != ArsenalItems.VOLTAIC_BLADE.get()) continue;
-                    CuriosScabbardHelper.DrawableWeaponInfo entry =
-                        new CuriosScabbardHelper.DrawableWeaponInfo(
-                            backpackStack,
-                            inner,
-                            CuriosScabbardHelper.ScabbardLocation.INVENTORY,
-                            "",  // curio slot id — 未使用 (location が INVENTORY なので)
-                            i    // player inventory slot index (backpack の所在)
-                        );
-                    injectedEntries.put(entry, Boolean.TRUE);
-                    list.add(entry);
+                if (handler == null) return;
+
+                if (mode == WeaponWheelState.WheelMode.DRAW) {
+                    // 専用充電スロット先にチェック (R短押し収納の主な格納先)
+                    ItemStack inCharge = new ChargeSlotInventory(backpackStack).getStackInSlot(0);
+                    if (inCharge.getItem() == ArsenalItems.VOLTAIC_BLADE.get()) {
+                        addEntry(list, backpackStack, inCharge, source);
+                    }
+                    // 通常スロット
+                    for (int s = 0; s < handler.getSlots(); s++) {
+                        ItemStack inner = handler.getStackInSlot(s);
+                        if (inner.getItem() != ArsenalItems.VOLTAIC_BLADE.get()) continue;
+                        addEntry(list, backpackStack, inner, source);
+                    }
+                } else if (mode == WeaponWheelState.WheelMode.SHEATH) {
+                    ItemStack mainHand = player.getMainHandItem();
+                    if (mainHand.getItem() != ArsenalItems.VOLTAIC_BLADE.get()) return;
+                    boolean chargeEmpty = new ChargeSlotInventory(backpackStack)
+                        .getStackInSlot(0).isEmpty();
+                    if (!chargeEmpty && !hasEmptySlot(handler)) return;
+                    addEntry(list, backpackStack, mainHand, source);
                 }
-            }
-        } catch (Exception e) {
-            // reflection 失敗時はサイレントに諦める (MAW 側の変更で field 名が変わった等)
+            });
+        } catch (Exception ignored) {
+            // reflection 失敗時はサイレントに諦める
         }
     }
 
-    /** Wheel が閉じる直前の選択を見て、我々のエントリなら DrawFromBackpackPacket を送る。 */
+    private static void addEntry(
+        List<CuriosScabbardHelper.DrawableWeaponInfo> list,
+        ItemStack backpackStack,
+        ItemStack bladeStack,
+        BackpackScanner.BackpackSource source
+    ) {
+        // wheel UI の getSlotLabel は ScabbardLocation.CURIOS+curioSlotId="back" を「背中」と表示し、
+        // ScabbardLocation.INVENTORY を「インベントリ」と表示する。
+        // 背負っているバックパックは背中ラベル、インベントリ内のは「インベントリ」を表示させる。
+        CuriosScabbardHelper.ScabbardLocation location;
+        String curioSlotId;
+        if (source == BackpackScanner.BackpackSource.CURIOS_BACK) {
+            location = CuriosScabbardHelper.ScabbardLocation.CURIOS;
+            curioSlotId = "back";
+        } else {
+            location = CuriosScabbardHelper.ScabbardLocation.INVENTORY;
+            curioSlotId = null;
+        }
+        // slotIndex は wheel 視覚にしか使われない (我々の packet 側では参照しない)。
+        CuriosScabbardHelper.DrawableWeaponInfo entry =
+            new CuriosScabbardHelper.DrawableWeaponInfo(
+                backpackStack,
+                bladeStack,
+                location,
+                curioSlotId,
+                -1
+            );
+        injectedEntries.put(entry, Boolean.TRUE);
+        list.add(entry);
+    }
+
+    private static boolean hasEmptySlot(IItemHandler handler) {
+        for (int s = 0; s < handler.getSlots(); s++) {
+            if (handler.getStackInSlot(s).isEmpty()) return true;
+        }
+        return false;
+    }
+
+    /** wheel 閉じる直前の選択を見て対応するパケットを送信。 */
     private static void handleWheelClosed() {
         try {
             if (lastList == null || lastSelectedIndex < 0 || lastSelectedIndex >= lastList.size()) {
                 return;
             }
             CuriosScabbardHelper.DrawableWeaponInfo selected = lastList.get(lastSelectedIndex);
-            if (injectedEntries.containsKey(selected)) {
-                // 我々の注入したエントリが選択された
+            if (!injectedEntries.containsKey(selected)) return;
+
+            if (lastMode == WeaponWheelState.WheelMode.DRAW) {
                 BackpackArsenalNetwork.CHANNEL.sendToServer(new DrawFromBackpackPacket());
+            } else if (lastMode == WeaponWheelState.WheelMode.SHEATH) {
+                BackpackArsenalNetwork.CHANNEL.sendToServer(new SheathToBackpackPacket());
             }
-        } catch (Exception e) {
+        } catch (Exception ignored) {
             // ignore
         } finally {
-            // 次の wheel 開きに備えて状態リセット
             injectedEntries.clear();
             lastSelectedIndex = -1;
             lastList = null;
+            lastMode = null;
         }
+    }
+
+    /** ArsenalBackpack 限定判定 (バニラ SB バックパックは false) */
+    public static boolean isArsenalBackpack(ItemStack stack) {
+        return !stack.isEmpty() && stack.getItem() == ArsenalItems.ARSENAL_BACKPACK.get();
     }
 }
