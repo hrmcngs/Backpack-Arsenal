@@ -1,11 +1,19 @@
 # https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 #
 # Forge MOD プロジェクト向け Dependabot 設定
-# - Gradle: build.gradle に書かれた普通の依存 (Maven Central / TheIllusiveC4 等)
-#   を週1で監視する。Forge 自身や CurseMaven (curse.maven:*) は Maven ではなく
-#   独自リポジトリから取るので Dependabot では追えないが、その辺は人間が
-#   手動で fileId を更新する運用とする。
-# - GitHub Actions: .github/workflows/ にワークフローを追加したら自動で追従。
+#
+# 監視対象:
+#   - gradle: build.gradle の Maven 系依存 (Curios, GeckoLib 等)
+#   - github-actions: .github/workflows/ のアクション
+#
+# 無視:
+#   - curse.maven:* — CurseMaven は Dependabot 非対応 (手動 fileId 更新運用)
+#   - net.minecraftforge:forge — Forge 本体は MC バージョン縛り。47.x 系内のパッチのみ手動更新
+#   - gradle-wrapper の major bump — ForgeGradle 6.x は Gradle 8.x までしか対応しない (9.x で壊れる)
+#
+# 過去の事故防止メモ:
+#   - PR #4 (Forge 26.1.2-64.0.8 bump) で fileId が存在せず CI 失敗 → 手動 revert
+#   - PR #5 (gradle-wrapper 9.5.1 bump) で ForgeGradle と非互換 → 手動 revert
 version: 2
 updates:
   - package-ecosystem: "gradle"
@@ -22,12 +30,19 @@ updates:
     commit-message:
       prefix: "deps"
       include: "scope"
-    # CurseMaven 経由のものは Dependabot が解決できないので無視する。
-    # (build.gradle の curse.maven:* 系は手動で fileId を更新する)
     ignore:
+      # CurseMaven 経由 — Dependabot 解決不可
       - dependency-name: "curse.maven:*"
       - dependency-name: "local:*"
-      # 本体MOD 'the_four_primitives_and_weapons' は libs/local/ に置く前提
+
+      # Forge 本体 — MC 1.20.1 縛りなので major/minor 上げると別 MC バージョンになる
+      # patch (1.20.1-47.x.y) のみ手動更新する運用
+      - dependency-name: "net.minecraftforge:forge"
+
+      # Gradle wrapper の major 上げを禁止 (ForgeGradle 6.x は Gradle 8.x 上限)
+      # 8.x 内の minor/patch update は許容
+      - dependency-name: "gradle"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
