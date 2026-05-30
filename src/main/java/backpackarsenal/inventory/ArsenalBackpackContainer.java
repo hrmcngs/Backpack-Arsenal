@@ -25,23 +25,33 @@ import java.lang.reflect.Field;
  */
 public class ArsenalBackpackContainer extends BackpackContainer {
 
-    /** 充電スロットの座標 (Slot 内部用 — Screen 側もこの座標基準で背景描画)。
-     *  upgrade slot 列 (x=-19 付近, y=8..98 で 5 スロット) と重なると不可視になるので、
-     *  upgrade slot 列の下に置く。Y=104 で 5 スロット (y=98 末尾) との間に 6px の隙間。 */
-    public static final int CHARGE_SLOT_X = -22;
-    public static final int CHARGE_SLOT_Y = 104;
+    /** 充電スロットの座標は ArsenalBackpackConfig から取得 (config/backpack_arsenal.json 編集可)。
+     *  default は upgrade 列の一番上 (X=-19, Y=8)。
+     *  これらは Screen 側の背景描画でも参照する (互換のため public static のまま、しかし
+     *  実際は Config の値を使う). */
+    public static int CHARGE_SLOT_X = backpackarsenal.init.ArsenalBackpackConfig.DEFAULT_CHARGE_SLOT_X;
+    public static int CHARGE_SLOT_Y = backpackarsenal.init.ArsenalBackpackConfig.DEFAULT_CHARGE_SLOT_Y;
 
     private final ChargeSlotInventory chargeInventory;
 
     public ArsenalBackpackContainer(int containerId, Player player, BackpackContext ctx) {
         super(containerId, player, ctx);
+        // Config の最新値を取得 (reload した直後にもこの GUI 構築で反映される)
+        int slotX = backpackarsenal.init.ArsenalBackpackConfig.chargeSlotX;
+        int slotY = backpackarsenal.init.ArsenalBackpackConfig.chargeSlotY;
+        // 互換のため static field も同期させる (Screen 側の背景描画が参照)
+        CHARGE_SLOT_X = slotX;
+        CHARGE_SLOT_Y = slotY;
+        backpackarsenal.BackpackArsenalMod.LOGGER.info(
+            "[backpack_arsenal] ArsenalBackpackContainer ctor: side={}, id={}, chargeSlot=({},{})",
+            player.level().isClientSide ? "CLIENT" : "SERVER", containerId, slotX, slotY);
         overrideMenuType();
 
         IBackpackWrapper wrapper = ctx.getBackpackWrapper(player);
         ItemStack backpackStack = wrapper.getBackpack();
         this.chargeInventory = new ChargeSlotInventory(backpackStack);
 
-        addExtraSlot(new SlotItemHandler(chargeInventory, 0, CHARGE_SLOT_X, CHARGE_SLOT_Y) {
+        addExtraSlot(new SlotItemHandler(chargeInventory, 0, slotX, slotY) {
             @Override
             public boolean mayPlace(ItemStack stack) {
                 return chargeInventory.isItemValid(0, stack);
@@ -51,31 +61,64 @@ public class ArsenalBackpackContainer extends BackpackContainer {
 
     /** AbstractContainerMenu.menuType を private final ごと reflection で上書き。 */
     private void overrideMenuType() {
+        Throwable mojangFailure = null;
         try {
             Field f = AbstractContainerMenu.class.getDeclaredField("menuType");
             f.setAccessible(true);
             f.set(this, ArsenalMenuTypes.ARSENAL_BACKPACK_MENU.get());
-        } catch (NoSuchFieldException e) {
-            // SRG 環境ではフィールド名が違う可能性。よくある SRG 名にフォールバック。
-            try {
-                Field f = AbstractContainerMenu.class.getDeclaredField("f_38840_");
-                f.setAccessible(true);
-                f.set(this, ArsenalMenuTypes.ARSENAL_BACKPACK_MENU.get());
-            } catch (Exception fallback) {
-                throw new RuntimeException(
-                    "[backpack_arsenal] Failed to override menuType via reflection. " +
-                    "MC mapping changed? Need to update field name.", fallback);
-            }
-        } catch (Exception e) {
+            backpackarsenal.BackpackArsenalMod.LOGGER.info(
+                "[backpack_arsenal] overrideMenuType: 'menuType' field set OK");
+            return;
+        } catch (Throwable t) {
+            mojangFailure = t;
+        }
+        // SRG 環境ではフィールド名が違う可能性。よくある SRG 名にフォールバック。
+        try {
+            Field f = AbstractContainerMenu.class.getDeclaredField("f_38840_");
+            f.setAccessible(true);
+            f.set(this, ArsenalMenuTypes.ARSENAL_BACKPACK_MENU.get());
+            backpackarsenal.BackpackArsenalMod.LOGGER.info(
+                "[backpack_arsenal] overrideMenuType: 'f_38840_' field set OK");
+            return;
+        } catch (Throwable fallback) {
+            backpackarsenal.BackpackArsenalMod.LOGGER.error(
+                "[backpack_arsenal] overrideMenuType FAILED: mojang ex={}, srg ex={}",
+                mojangFailure, fallback);
             throw new RuntimeException(
-                "[backpack_arsenal] Failed to override menuType via reflection.", e);
+                "[backpack_arsenal] Failed to override menuType via reflection.", fallback);
         }
     }
 
     /** MenuType の network factory 用。 */
     public static ArsenalBackpackContainer fromBuffer(int id, Inventory inv, FriendlyByteBuf buf) {
-        BackpackContext ctx = BackpackContext.fromBuffer(buf, inv.player.level());
-        return new ArsenalBackpackContainer(id, inv.player, ctx);
+        var log = backpackarsenal.BackpackArsenalMod.LOGGER;
+        log.info("[backpack_arsenal] fromBuffer step 1: id={}, inv={}, buf.size={}",
+            id, inv, buf.readableBytes());
+        log.info("[backpack_arsenal] fromBuffer step 2: inv.player={}", inv.player);
+        net.minecraft.world.level.Level level;
+        try {
+            level = inv.player.level();
+            log.info("[backpack_arsenal] fromBuffer step 3: level={}", level);
+        } catch (Throwable t) {
+            log.error("[backpack_arsenal] fromBuffer step 3 FAILED", t);
+            throw new RuntimeException("fromBuffer step 3", t);
+        }
+        BackpackContext ctx;
+        try {
+            ctx = BackpackContext.fromBuffer(buf, level);
+            log.info("[backpack_arsenal] fromBuffer step 4: ctx={}", ctx);
+        } catch (Throwable t) {
+            log.error("[backpack_arsenal] fromBuffer step 4 FAILED (BackpackContext.fromBuffer)", t);
+            throw new RuntimeException("fromBuffer step 4", t);
+        }
+        try {
+            ArsenalBackpackContainer c = new ArsenalBackpackContainer(id, inv.player, ctx);
+            log.info("[backpack_arsenal] fromBuffer step 5: ctor OK");
+            return c;
+        } catch (Throwable t) {
+            log.error("[backpack_arsenal] fromBuffer step 5 FAILED (ctor)", t);
+            throw new RuntimeException("fromBuffer step 5", t);
+        }
     }
 
     public ChargeSlotInventory getChargeInventory() {

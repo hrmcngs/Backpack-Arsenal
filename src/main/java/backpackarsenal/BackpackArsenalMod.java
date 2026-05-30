@@ -38,11 +38,18 @@ public class BackpackArsenalMod {
     public BackpackArsenalMod() {
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
 
+        // Config を最初に読み込む (Item 登録より前) — Item の lambda が config 値を参照するため
+        backpackarsenal.init.ArsenalBackpackConfig.load();
+
         ArsenalItems.REGISTRY.register(modBus);
         backpackarsenal.init.ArsenalMenuTypes.REGISTRY.register(modBus);
         backpackarsenal.init.ArsenalCreativeTab.REGISTRY.register(modBus);
         modBus.addListener(this::onCommonSetup);
         modBus.addListener(this::onClientSetup);
+
+        // /backpack_arsenal reload コマンド登録
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(
+            backpackarsenal.command.ArsenalReloadCommand.class);
 
         LOGGER.info("[{}] Loaded — backpacks now charge MAW weapons.", MODID);
     }
@@ -60,13 +67,40 @@ public class BackpackArsenalMod {
     @SuppressWarnings({"unchecked", "rawtypes"})
     private void onClientSetup(net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent event) {
         event.enqueueWork(() -> {
+            LOGGER.info("[{}] onClientSetup: registering MenuScreens for {}",
+                MODID, backpackarsenal.init.ArsenalMenuTypes.ARSENAL_BACKPACK_MENU.get());
             net.minecraft.client.gui.screens.MenuScreens.register(
                 (net.minecraft.world.inventory.MenuType)
                     backpackarsenal.init.ArsenalMenuTypes.ARSENAL_BACKPACK_MENU.get(),
                 (net.minecraft.client.gui.screens.MenuScreens.ScreenConstructor)
-                    (menu, inv, title) -> new backpackarsenal.client.ArsenalBackpackScreen(
-                        (backpackarsenal.inventory.ArsenalBackpackContainer) menu, inv, title)
+                    (menu, inv, title) -> {
+                        LOGGER.info("[{}] ScreenConstructor invoked: menu class={}",
+                            MODID, menu.getClass().getName());
+                        return new backpackarsenal.client.ArsenalBackpackScreen(
+                            (backpackarsenal.inventory.ArsenalBackpackContainer) menu, inv, title);
+                    }
             );
+            LOGGER.info("[{}] onClientSetup: MenuScreens.register completed", MODID);
+
+            // Curios "back" 装備時の身体貼付き描画のため、SB の BackpackCurioRenderer を
+            // arsenal_backpack 用に登録する。SB は CuriosCompat.onAttachCapabilities で
+            // namespace="sophisticatedbackpacks" の item のみに renderer を attach するので、
+            // 我々の namespace="backpack_arsenal" には自分で登録する必要がある。
+            // renderer は SB の BackpackLayerRenderer.renderBackpack を呼び出すので、
+            // 我々の JSON BakedModel が WORN context で描画される。
+            //
+            // try-catch でラップ: Curios API のバージョン不整合や SB 内部 class へのアクセス
+            // 失敗が起きても MenuScreens 登録 (上記) はもう完了済みなので、右クリック GUI は
+            // 影響を受けない。
+            try {
+                top.theillusivec4.curios.api.client.CuriosRendererRegistry.register(
+                    backpackarsenal.init.ArsenalItems.ARSENAL_BACKPACK.get(),
+                    net.p3pp3rf1y.sophisticatedbackpacks.compat.curios.BackpackCurioRenderer::new
+                );
+            } catch (Throwable t) {
+                LOGGER.error("[{}] Failed to register Curios renderer for arsenal_backpack: {}",
+                    MODID, t.toString());
+            }
         });
     }
 

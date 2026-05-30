@@ -49,20 +49,28 @@ public class ArsenalBackpackItem extends BackpackItem {
     /** インベントリスロット数 — 最低限の 9 スロット (チェスト1段分のさらに半分以下)。
      *  これより小さくしたい/大きくしたい場合は数字を変える。 */
     public static final int INVENTORY_SLOTS = 9;
-    /** アップグレードスロット数 — SB の Stack/Pickup/Magnet 等を 5 枚まで挿せる。 */
-    public static final int UPGRADE_SLOTS   = 5;
+    /** アップグレードスロット数 — SB の Stack/Pickup/Magnet 等を 4 枚まで挿せる。
+     *  upgrade 列の一番上 (Y=8) は専用充電スロットに譲っているので 4 枚。 */
+    public static final int UPGRADE_SLOTS   = 4;
 
     /** 通常スロット 1 マスあたりの最大スタック数 (voltaic_blade は別。stacksTo(1) の Item 自体の上限が効く) */
     public static final int PER_SLOT_STACK_LIMIT = 9;
 
     public ArsenalBackpackItem() {
         super(
-            () -> INVENTORY_SLOTS,
-            () -> UPGRADE_SLOTS,
+            // lambda が呼ばれる度に config の現在値を読むので、reload で動的反映可能
+            () -> backpackarsenal.init.ArsenalBackpackConfig.inventorySlots,
+            () -> backpackarsenal.init.ArsenalBackpackConfig.upgradeSlots,
             (Supplier<BackpackBlock>) ModBlocks.BACKPACK::get,
             (UnaryOperator<Item.Properties>) props -> props.rarity(Rarity.UNCOMMON).stacksTo(1)
         );
     }
+
+    // initializeClient() は SB 親に委ねる。
+    // SB の BackpackItemStackRenderer (BEWLR) は内部で ItemRenderer.getModel(stack) を呼ぶので、
+    // 我々の JSON BakedModel (assets/backpack_arsenal/models/item/arsenal_backpack.json) を
+    // 自動で使ってくれる。Curios "back" の身体貼付き位置 (BackpackLayerRenderer 経由) や
+    // インベントリ表示も同じ BakedModel が使われるため、override せず親に任せる方が正しく動く。
 
     /**
      * SB の capability provider を wrap し、ITEM_HANDLER を返す際に
@@ -161,18 +169,35 @@ public class ArsenalBackpackItem extends BackpackItem {
     @Override
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
         ItemStack stack = player.getItemInHand(hand);
+        backpackarsenal.BackpackArsenalMod.LOGGER.info(
+            "[backpack_arsenal] use() called: side={}, hand={}, item={}",
+            level.isClientSide ? "CLIENT" : "SERVER", hand, stack.getItem());
         if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
-            String handlerName = (hand == InteractionHand.MAIN_HAND) ? "main" : "offhand";
-            int slotIndex = (hand == InteractionHand.MAIN_HAND)
-                ? player.getInventory().selected
-                : 0;
-            BackpackContext.Item ctx = new BackpackContext.Item(handlerName, slotIndex);
+            try {
+                String handlerName = (hand == InteractionHand.MAIN_HAND) ? "main" : "offhand";
+                int slotIndex = (hand == InteractionHand.MAIN_HAND)
+                    ? player.getInventory().selected
+                    : 0;
+                BackpackContext.Item ctx = new BackpackContext.Item(handlerName, slotIndex);
 
-            SimpleMenuProvider provider = new SimpleMenuProvider(
-                (containerId, inv, p) -> new ArsenalBackpackContainer(containerId, p, ctx),
-                stack.getHoverName()
-            );
-            NetworkHooks.openScreen(serverPlayer, provider, ctx::addToBuffer);
+                SimpleMenuProvider provider = new SimpleMenuProvider(
+                    (containerId, inv, p) -> {
+                        backpackarsenal.BackpackArsenalMod.LOGGER.info(
+                            "[backpack_arsenal] MenuConstructor invoked: containerId={}", containerId);
+                        return new ArsenalBackpackContainer(containerId, p, ctx);
+                    },
+                    stack.getHoverName()
+                );
+                backpackarsenal.BackpackArsenalMod.LOGGER.info(
+                    "[backpack_arsenal] Calling NetworkHooks.openScreen for slot={}", slotIndex);
+                // 重要: ctx::toBuffer (=type marker + addToBuffer) を使う。
+                // ctx::addToBuffer だと ContextType marker が書かれず、client の
+                // BackpackContext.fromBuffer が dispatch table を解釈できず silent crash する。
+                NetworkHooks.openScreen(serverPlayer, provider, ctx::toBuffer);
+            } catch (Throwable t) {
+                backpackarsenal.BackpackArsenalMod.LOGGER.error(
+                    "[backpack_arsenal] use() failed", t);
+            }
         }
         return InteractionResultHolder.sidedSuccess(stack, level.isClientSide);
     }
