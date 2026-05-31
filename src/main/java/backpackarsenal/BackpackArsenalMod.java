@@ -97,8 +97,12 @@ public class BackpackArsenalMod {
                     backpackarsenal.init.ArsenalItems.ARSENAL_BACKPACK.get(),
                     net.p3pp3rf1y.sophisticatedbackpacks.compat.curios.BackpackCurioRenderer::new
                 );
+                top.theillusivec4.curios.api.client.CuriosRendererRegistry.register(
+                    backpackarsenal.init.ArsenalItems.BASIC_BACKPACK.get(),
+                    net.p3pp3rf1y.sophisticatedbackpacks.compat.curios.BackpackCurioRenderer::new
+                );
             } catch (Throwable t) {
-                LOGGER.error("[{}] Failed to register Curios renderer for arsenal_backpack: {}",
+                LOGGER.error("[{}] Failed to register Curios renderer for backpacks: {}",
                     MODID, t.toString());
             }
         });

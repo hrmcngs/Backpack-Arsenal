@@ -2,9 +2,7 @@ package backpackarsenal.item;
 
 import backpackarsenal.init.ArsenalItems;
 import backpackarsenal.inventory.ArsenalBackpackContainer;
-import backpackarsenal.inventory.ChargeSlotInventory;
 import net.minecraft.ChatFormatting;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -72,63 +70,16 @@ public class ArsenalBackpackItem extends BackpackItem {
     // 自動で使ってくれる。Curios "back" の身体貼付き位置 (BackpackLayerRenderer 経由) や
     // インベントリ表示も同じ BakedModel が使われるため、override せず親に任せる方が正しく動く。
 
-    /**
-     * SB の capability provider を wrap し、ITEM_HANDLER を返す際に
-     * {@link backpackarsenal.inventory.StackLimitedHandler} で getSlotLimit を
-     * {@link #PER_SLOT_STACK_LIMIT} (9) に上限制限する。
-     *
-     * voltaic_blade は Item.maxStackSize=1 なので影響なし。他アイテム (土・石ブロック等) は
-     * 1スロット 9個までになる。
-     */
-    @Override
-    public net.minecraftforge.common.capabilities.ICapabilityProvider initCapabilities(
-            ItemStack stack, net.minecraft.nbt.CompoundTag tag) {
-        final net.minecraftforge.common.capabilities.ICapabilityProvider sbProvider =
-            super.initCapabilities(stack, tag);
-        if (sbProvider == null) return null;
-        return new net.minecraftforge.common.capabilities.ICapabilityProvider() {
-            @Override
-            @org.jetbrains.annotations.NotNull
-            public <T> net.minecraftforge.common.util.LazyOptional<T> getCapability(
-                    @org.jetbrains.annotations.NotNull
-                    net.minecraftforge.common.capabilities.Capability<T> cap,
-                    @org.jetbrains.annotations.Nullable
-                    net.minecraft.core.Direction side) {
-                net.minecraftforge.common.util.LazyOptional<T> sbCap = sbProvider.getCapability(cap, side);
-                if (cap == net.minecraftforge.common.capabilities.ForgeCapabilities.ITEM_HANDLER) {
-                    return sbCap.lazyMap(h -> {
-                        if (h instanceof net.minecraftforge.items.IItemHandlerModifiable mod) {
-                            return new backpackarsenal.inventory.StackLimitedHandler(mod, PER_SLOT_STACK_LIMIT);
-                        }
-                        return h;
-                    }).cast();
-                }
-                return sbCap;
-            }
-        };
-    }
+    // initCapabilities() は super に委ねる。
+    // 以前は StackLimitedHandler で 1 スロット 9 個に上限を被せていたが、これが
+    // Stack Upgrade (スロット上限を倍々で増やす) の効果を打ち消してしまうため撤去。
+    // デフォルト SB インベントリの挙動に揃える。
 
-    /**
-     * インベントリでホバー時に納刀中の voltaic_blade を表示する (通常鞘相当)。
-     * - 充電スロット (専用) の中身
-     * - 通常スロット内の voltaic_blade 本数
-     */
+    /** インベントリでホバー時に通常スロット内の voltaic_blade 本数を表示する。 */
     @Override
     public void appendHoverText(ItemStack stack, Level level, List<Component> tooltip, TooltipFlag flag) {
         super.appendHoverText(stack, level, tooltip, flag);
 
-        // (1) 充電スロット
-        ItemStack stored = readDedicatedSlot(stack);
-        if (!stored.isEmpty() && stored.getItem() == ArsenalItems.VOLTAIC_BLADE.get()) {
-            int charge = VoltaicBladeItem.getCharge(stored);
-            int max = VoltaicBladeItem.getMaxCharge(stored);
-            tooltip.add(Component.translatable(
-                    "item.backpack_arsenal.arsenal_backpack.stored",
-                    stored.getHoverName(), charge, max
-            ).withStyle(ChatFormatting.AQUA));
-        }
-
-        // (2) 通常スロット内の voltaic_blade 本数
         int countInRegular = countVoltaicInRegularSlots(stack);
         if (countInRegular > 0) {
             tooltip.add(Component.translatable(
@@ -136,18 +87,6 @@ public class ArsenalBackpackItem extends BackpackItem {
                     countInRegular
             ).withStyle(ChatFormatting.GRAY));
         }
-    }
-
-    /** NBT 直読みで充電スロットの ItemStack を取得する (ChargeSlotInventory の副作用を避ける用)。 */
-    private static ItemStack readDedicatedSlot(ItemStack backpack) {
-        CompoundTag tag = backpack.getTag();
-        if (tag == null || !tag.contains(ChargeSlotInventory.NBT_KEY, 10)) return ItemStack.EMPTY;
-        CompoundTag slotTag = tag.getCompound(ChargeSlotInventory.NBT_KEY);
-        // ItemStackHandler.serializeNBT() は "Items" リストに各スロットを格納
-        if (!slotTag.contains("Items", 9)) return ItemStack.EMPTY;
-        var items = slotTag.getList("Items", 10);
-        if (items.isEmpty()) return ItemStack.EMPTY;
-        return ItemStack.of(items.getCompound(0));
     }
 
     /** バックパック内の通常スロットに入っている voltaic_blade の本数を数える。 */

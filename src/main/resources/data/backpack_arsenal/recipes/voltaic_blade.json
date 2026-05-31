@@ -1,0 +1,17 @@
+{
+  "_comment": "Voltaic Blade — 電気属性の刀。amethyst_shard (電気テーマ) + iron_ingot (刃) + stick (柄) で縦並びの剣形レシピ。",
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    " A ",
+    " I ",
+    " S "
+  ],
+  "key": {
+    "A": { "item": "minecraft:amethyst_shard" },
+    "I": { "item": "minecraft:iron_ingot" },
+    "S": { "item": "minecraft:stick" }
+  },
+  "result": {
+    "item": "backpack_arsenal:voltaic_blade"
+  }
+}

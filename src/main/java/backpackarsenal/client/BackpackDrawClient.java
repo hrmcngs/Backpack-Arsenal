@@ -2,7 +2,6 @@ package backpackarsenal.client;
 
 import backpackarsenal.BackpackArsenalMod;
 import backpackarsenal.init.ArsenalItems;
-import backpackarsenal.inventory.ChargeSlotInventory;
 import backpackarsenal.network.BackpackArsenalNetwork;
 import backpackarsenal.network.DrawFromBackpackPacket;
 import backpackarsenal.network.SheathToBackpackPacket;
@@ -155,13 +154,6 @@ public class BackpackDrawClient {
         AtomicBoolean found = new AtomicBoolean(false);
         BackpackScanner.forEachArsenalBackpack(player, backpackStack -> {
             if (found.get()) return;
-            // 専用充電スロット
-            if (new ChargeSlotInventory(backpackStack).getStackInSlot(0).getItem()
-                    == ArsenalItems.VOLTAIC_BLADE.get()) {
-                found.set(true);
-                return;
-            }
-            // 通常スロット
             IItemHandler h = backpackStack.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
             if (h == null) return;
             for (int s = 0; s < h.getSlots(); s++) {
@@ -178,17 +170,10 @@ public class BackpackDrawClient {
         AtomicBoolean found = new AtomicBoolean(false);
         BackpackScanner.forEachArsenalBackpack(player, backpackStack -> {
             if (found.get()) return;
-            // 専用充電スロット空き
-            if (new ChargeSlotInventory(backpackStack).getStackInSlot(0).isEmpty()) {
-                found.set(true);
-                return;
-            }
-            // 通常スロット空き
             IItemHandler h = backpackStack.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
             if (h == null) return;
             for (int s = 0; s < h.getSlots(); s++) {
-                ItemStack item = h.getStackInSlot(s);
-                if (item.isEmpty()) {
+                if (h.getStackInSlot(s).isEmpty()) {
                     found.set(true);
                     return;
                 }

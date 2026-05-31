@@ -28,6 +28,7 @@ public class ArsenalCreativeTab {
             .displayItems((params, output) -> {
                 output.accept(ArsenalItems.VOLTAIC_BLADE.get());
                 output.accept(ArsenalItems.ARSENAL_BACKPACK.get());
+                output.accept(ArsenalItems.BASIC_BACKPACK.get());
                 output.accept(ArsenalItems.VOLTAIC_CHARGER_UPGRADE.get());
             })
             .build()

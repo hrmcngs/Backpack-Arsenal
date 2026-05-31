@@ -1,0 +1,18 @@
+{
+  "_comment": "Arsenal Backpack — SB の leather backpack を電気素材で強化する形のレシピ。中央に SB backpack、上に amethyst、左右下に redstone block、四隅に iron ingot。",
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "IAI",
+    "RBR",
+    "IRI"
+  ],
+  "key": {
+    "I": { "item": "minecraft:iron_ingot" },
+    "A": { "item": "minecraft:amethyst_shard" },
+    "R": { "item": "minecraft:redstone_block" },
+    "B": { "item": "sophisticatedbackpacks:backpack" }
+  },
+  "result": {
+    "item": "backpack_arsenal:arsenal_backpack"
+  }
+}

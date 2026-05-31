@@ -9,19 +9,21 @@ import net.minecraft.world.entity.player.Inventory;
 import net.p3pp3rf1y.sophisticatedbackpacks.client.gui.BackpackScreen;
 
 /**
- * Arsenal Backpack 用 Screen。SB の BackpackScreen を継承し、専用充電スロット背景と
- * 隣接パネルを上書き描画する。
+ * Arsenal Backpack 用 Screen。SB の BackpackScreen を継承する。
  *
- * 描画順:
- *   1. renderBg() で vanilla の inventory.png から 18x18 スロット枠を切り出して
- *      charge slot 位置に描く。スロット内のアイテムは AbstractContainerScreen の
- *      slot 描画ロジックが renderBg 後に描くので、bg が上に被って消えない。
+ * 過去には専用充電スロット + F8 編集モードを実装していたが、SB の slot indexing と
+ * 整合しないため通常スロットが欠ける事象が発生したので撤去した。現在は SB 標準パネルの
+ * 上にユーザー編集可能な透明 PNG (arsenal_backpack_bg.png) を重ねるだけのシンプル構成。
+ *
+ * カスタム見た目を入れたい時は assets/backpack_arsenal/textures/gui/arsenal_backpack_bg.png
+ * を編集する。完全に透明なら SB のパネルがそのまま見える。
  */
 public class ArsenalBackpackScreen extends BackpackScreen {
 
-    /** vanilla の inventory.png — slot 18x18 を含む */
-    private static final ResourceLocation VANILLA_INVENTORY =
-        new ResourceLocation("textures/gui/container/inventory.png");
+    /** 独自パネル overlay テクスチャ (assets/backpack_arsenal/textures/gui/arsenal_backpack_bg.png) — 256x256 PNG。
+     *  SB のパネル背景に上から被せる。透明なら SB のパネルがそのまま見える。 */
+    private static final ResourceLocation CUSTOM_BG =
+        new ResourceLocation("backpack_arsenal", "textures/gui/arsenal_backpack_bg.png");
 
     public ArsenalBackpackScreen(ArsenalBackpackContainer container, Inventory inv, Component title) {
         super(container, inv, title);
@@ -30,15 +32,7 @@ public class ArsenalBackpackScreen extends BackpackScreen {
     @Override
     protected void renderBg(GuiGraphics gfx, float partial, int mouseX, int mouseY) {
         super.renderBg(gfx, partial, mouseX, mouseY);
-        drawChargeSlotBackground(gfx);
-    }
-
-    /** vanilla の inventory.png から空スロット 18x18 を切り出して charge slot 位置に重ねる。 */
-    private void drawChargeSlotBackground(GuiGraphics gfx) {
-        int x = leftPos + ArsenalBackpackContainer.CHARGE_SLOT_X - 1;
-        int y = topPos + ArsenalBackpackContainer.CHARGE_SLOT_Y - 1;
-        // inventory.png 内の hotbar slot 領域 (7,141) を 18x18 で切り出して再利用
         RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
-        gfx.blit(VANILLA_INVENTORY, x, y, 7, 141, 18, 18);
+        gfx.blit(CUSTOM_BG, leftPos, topPos, 0, 0, imageWidth, imageHeight, 256, 256);
     }
 }

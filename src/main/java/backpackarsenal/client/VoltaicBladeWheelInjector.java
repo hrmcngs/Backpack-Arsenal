@@ -2,7 +2,6 @@ package backpackarsenal.client;
 
 import backpackarsenal.BackpackArsenalMod;
 import backpackarsenal.init.ArsenalItems;
-import backpackarsenal.inventory.ChargeSlotInventory;
 import backpackarsenal.network.BackpackArsenalNetwork;
 import backpackarsenal.network.DrawFromBackpackPacket;
 import backpackarsenal.network.SheathToBackpackPacket;
@@ -99,12 +98,7 @@ public class VoltaicBladeWheelInjector {
                 if (handler == null) return;
 
                 if (mode == WeaponWheelState.WheelMode.DRAW) {
-                    // 専用充電スロット先にチェック (R短押し収納の主な格納先)
-                    ItemStack inCharge = new ChargeSlotInventory(backpackStack).getStackInSlot(0);
-                    if (inCharge.getItem() == ArsenalItems.VOLTAIC_BLADE.get()) {
-                        addEntry(list, backpackStack, inCharge, source);
-                    }
-                    // 通常スロット
+                    // 通常スロットを走査
                     for (int s = 0; s < handler.getSlots(); s++) {
                         ItemStack inner = handler.getStackInSlot(s);
                         if (inner.getItem() != ArsenalItems.VOLTAIC_BLADE.get()) continue;
@@ -113,9 +107,7 @@ public class VoltaicBladeWheelInjector {
                 } else if (mode == WeaponWheelState.WheelMode.SHEATH) {
                     ItemStack mainHand = player.getMainHandItem();
                     if (mainHand.getItem() != ArsenalItems.VOLTAIC_BLADE.get()) return;
-                    boolean chargeEmpty = new ChargeSlotInventory(backpackStack)
-                        .getStackInSlot(0).isEmpty();
-                    if (!chargeEmpty && !hasEmptySlot(handler)) return;
+                    if (!hasEmptySlot(handler)) return;
                     addEntry(list, backpackStack, mainHand, source);
                 }
             });

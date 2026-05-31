@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(file /Users/hiromichi/Documents/github/mods/Backpack-Arsenal/src/main/resources/assets/backpack_arsenal/textures/gui/*.png)",
+      "Bash(xargs -I{} sh -c 'echo \"{}\" | grep -i sophistic')",
+      "Bash(javap -p /tmp/sb_class/net/p3pp3rf1y/sophisticatedbackpacks/common/gui/BackpackContainer.class)",
+      "Bash(unzip -q /Users/hiromichi/.gradle/caches/forge_gradle/deobf_dependencies/curse/maven/sophisticated-core-618298/8143884_mapped_official_1.20.1/sophisticated-core-618298-8143884_mapped_official_1.20.1.jar net/p3pp3rf1y/sophisticatedcore/common/gui/StorageContainerMenuBase.class)",
+      "Bash(javap -p /tmp/sb_class/net/p3pp3rf1y/sophisticatedcore/common/gui/StorageContainerMenuBase.class)",
+      "Bash(javap -c -p /tmp/sb_class/net/p3pp3rf1y/sophisticatedcore/common/gui/StorageContainerMenuBase.class)",
+      "Bash(unzip -qo /Users/hiromichi/.gradle/caches/forge_gradle/deobf_dependencies/curse/maven/sophisticated-core-618298/8143884_mapped_official_1.20.1/sophisticated-core-618298-8143884_mapped_official_1.20.1.jar net/p3pp3rf1y/sophisticatedcore/upgrades/UpgradeType.class)",
+      "Bash(javap -p /tmp/sb_class/net/p3pp3rf1y/sophisticatedcore/upgrades/UpgradeType.class)",
+      "Bash(unzip -qo /Users/hiromichi/.gradle/caches/forge_gradle/deobf_dependencies/curse/maven/sophisticated-core-618298/8143884_mapped_official_1.20.1/sophisticated-core-618298-8143884_mapped_official_1.20.1.jar net/p3pp3rf1y/sophisticatedcore/upgrades/UpgradeHandler.class)",
+      "Bash(javap -p /tmp/sb_class/net/p3pp3rf1y/sophisticatedcore/upgrades/UpgradeHandler.class)",
+      "Bash(javap -c -p /tmp/sb_class/net/p3pp3rf1y/sophisticatedcore/upgrades/UpgradeHandler.class)",
+      "Bash(grep -B1 -A15 'lambda$initializeWrappers')",
+      "Bash(grep -B1 -A30 'lambda$initializeWrappers$2\\\\b')",
+      "Bash(grep -B1 -A20 'lambda$initializeWrappers')",
+      "Bash(unzip -qo /Users/hiromichi/.gradle/caches/forge_gradle/deobf_dependencies/curse/maven/sophisticated-core-618298/8143884_mapped_official_1.20.1/sophisticated-core-618298-8143884_mapped_official_1.20.1.jar net/p3pp3rf1y/sophisticatedcore/upgrades/UpgradeItemBase.class net/p3pp3rf1y/sophisticatedcore/upgrades/IUpgradeItem.class)",
+      "Bash(javap -p /tmp/sb_class/net/p3pp3rf1y/sophisticatedcore/upgrades/UpgradeItemBase.class)",
+      "Bash(unzip -qo /Users/hiromichi/.gradle/caches/forge_gradle/deobf_dependencies/curse/maven/sophisticated-core-618298/8143884_mapped_official_1.20.1/sophisticated-core-618298-8143884_mapped_official_1.20.1.jar net/p3pp3rf1y/sophisticatedcore/util/ItemBase.class)",
+      "Bash(javap -p -c /tmp/sb_class/net/p3pp3rf1y/sophisticatedcore/util/ItemBase.class)",
+      "Bash(javap -p -c /tmp/sb_class/net/p3pp3rf1y/sophisticatedcore/upgrades/UpgradeItemBase.class)",
+      "Bash(javap -p /tmp/sb_class/net/p3pp3rf1y/sophisticatedcore/upgrades/IUpgradeItem.class)",
+      "Bash(unzip -l /Users/hiromichi/.gradle/caches/forge_gradle/deobf_dependencies/curse/maven/sophisticated-core-618298/8143884_mapped_official_1.20.1/sophisticated-core-618298-8143884_mapped_official_1.20.1.jar)",
+      "Bash(javap -c -p '/tmp/sb_class/net/p3pp3rf1y/sophisticatedcore/common/gui/StorageContainerMenuBase$StorageUpgradeSlot.class')",
+      "Bash(unzip -qo /Users/hiromichi/.gradle/caches/forge_gradle/deobf_dependencies/curse/maven/sophisticated-core-618298/8143884_mapped_official_1.20.1/sophisticated-core-618298-8143884_mapped_official_1.20.1.jar net/p3pp3rf1y/sophisticatedcore/upgrades/UpgradeWrapperBase.class)",
+      "Bash(javap -p -c /tmp/sb_class/net/p3pp3rf1y/sophisticatedcore/upgrades/UpgradeWrapperBase.class)",
+      "Bash(unzip -qo /Users/hiromichi/.gradle/caches/forge_gradle/deobf_dependencies/curse/maven/sophisticated-backpacks-422301/8136850_mapped_official_1.20.1/sophisticated-backpacks-422301-8136850_mapped_official_1.20.1.jar net/p3pp3rf1y/sophisticatedbackpacks/api/CapabilityBackpackWrapper.class)",
+      "Bash(javap -p /tmp/sb_class/net/p3pp3rf1y/sophisticatedbackpacks/api/CapabilityBackpackWrapper.class)",
+      "Bash(unzip -qo /Users/hiromichi/.gradle/caches/forge_gradle/deobf_dependencies/curse/maven/sophisticated-backpacks-422301/8136850_mapped_official_1.20.1/sophisticated-backpacks-422301-8136850_mapped_official_1.20.1.jar net/p3pp3rf1y/sophisticatedbackpacks/backpack/wrapper/IBackpackWrapper.class)",
+      "Bash(javap -p /tmp/sb_class/net/p3pp3rf1y/sophisticatedbackpacks/backpack/wrapper/IBackpackWrapper.class)",
+      "Bash(javap -c -p /tmp/sb_class/net/p3pp3rf1y/sophisticatedcore/upgrades/UpgradeType.class)"
+    ]
+  }
+}

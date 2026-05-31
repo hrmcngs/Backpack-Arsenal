@@ -27,21 +27,36 @@ public class ArsenalReloadCommand {
                     .requires(s -> s.hasPermission(2))
                     .executes(ctx -> {
                         ArsenalBackpackConfig.reload();
-                        ctx.getSource().sendSuccess(() -> Component.literal(
-                            "[backpack_arsenal] Config reloaded: "
-                                + "inv=" + ArsenalBackpackConfig.inventorySlots
-                                + " upg=" + ArsenalBackpackConfig.upgradeSlots
-                                + " chargeSlot=(" + ArsenalBackpackConfig.chargeSlotX
-                                + "," + ArsenalBackpackConfig.chargeSlotY + ")"
-                                + " — 既に開いている GUI は再オープン必要"
-                        ), true);
-                        BackpackArsenalMod.LOGGER.info(
-                            "[{}] Config reloaded by {}",
-                            BackpackArsenalMod.MODID,
-                            ctx.getSource().getTextName());
+                        sendStatus(ctx.getSource(), "reloaded from disk");
+                        return 1;
+                    })
+                )
+                .then(Commands.literal("default")
+                    .requires(s -> s.hasPermission(2))
+                    .executes(ctx -> {
+                        ArsenalBackpackConfig.inventorySlots = ArsenalBackpackConfig.DEFAULT_INVENTORY_SLOTS;
+                        ArsenalBackpackConfig.upgradeSlots   = ArsenalBackpackConfig.DEFAULT_UPGRADE_SLOTS;
+                        ArsenalBackpackConfig.save();
+                        sendStatus(ctx.getSource(), "reset to default and saved");
+                        return 1;
+                    })
+                )
+                .then(Commands.literal("show")
+                    .executes(ctx -> {
+                        sendStatus(ctx.getSource(), "current in-memory values");
                         return 1;
                     })
                 )
         );
+    }
+
+    private static void sendStatus(CommandSourceStack src, String prefix) {
+        src.sendSuccess(() -> Component.literal(
+            "[backpack_arsenal] " + prefix + ": "
+                + "inv=" + ArsenalBackpackConfig.inventorySlots
+                + " upg=" + ArsenalBackpackConfig.upgradeSlots
+        ), true);
+        BackpackArsenalMod.LOGGER.info(
+            "[{}] {} by {}", BackpackArsenalMod.MODID, prefix, src.getTextName());
     }
 }

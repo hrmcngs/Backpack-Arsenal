@@ -29,4 +29,20 @@ public class ArsenalItems {
      *  の充電速度が枚数だけ倍率アップ (1枚=2倍、2枚=3倍...) */
     public static final RegistryObject<Item> VOLTAIC_CHARGER_UPGRADE =
         REGISTRY.register("voltaic_charger_upgrade", VoltaicChargerUpgradeItem::new);
+
+    /** Basic Backpack — 充電機能なしの普通のバックパック。
+     *  SB の BackpackItem をそのまま使う (subclass 無し)。
+     *  - 充電スロット無し
+     *  - voltaic_blade を入れても充電されない (BackpackScanner で除外される — namespace
+     *    が "sophisticatedbackpacks" でも arsenal_backpack でもないので)
+     *  - inventory 9 + upgrade 4 (ハードコード、config 連動しない)
+     *  - SB 既定の革 backpack block を共用 */
+    public static final RegistryObject<Item> BASIC_BACKPACK =
+        REGISTRY.register("basic_backpack", () -> new net.p3pp3rf1y.sophisticatedbackpacks.backpack.BackpackItem(
+            () -> 9,
+            () -> 4,
+            net.p3pp3rf1y.sophisticatedbackpacks.init.ModBlocks.BACKPACK::get,
+            (java.util.function.UnaryOperator<net.minecraft.world.item.Item.Properties>)
+                props -> props.rarity(net.minecraft.world.item.Rarity.COMMON).stacksTo(1)
+        ));
 }

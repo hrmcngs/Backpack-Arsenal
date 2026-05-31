@@ -1,0 +1,4 @@
+{
+  "_comment": "Basic Backpack — SB 既定 backpack の見た目をそのまま継承 (動的レンダリング)。",
+  "parent": "sophisticatedbackpacks:block/backpack"
+}

@@ -1,0 +1,19 @@
+{
+  "_comment": "Voltaic Charger Upgrade — 電気回路カード風レシピ。amethyst (電気) + copper (導電) + redstone (信号) + leather (カード基板)。",
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "RAR",
+    "LCL",
+    "RAR"
+  ],
+  "key": {
+    "R": { "item": "minecraft:redstone" },
+    "A": { "item": "minecraft:amethyst_shard" },
+    "L": { "item": "minecraft:leather" },
+    "C": { "item": "minecraft:copper_ingot" }
+  },
+  "result": {
+    "item": "backpack_arsenal:voltaic_charger_upgrade",
+    "count": 1
+  }
+}

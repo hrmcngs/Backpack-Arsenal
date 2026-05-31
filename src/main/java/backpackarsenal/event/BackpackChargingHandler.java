@@ -2,11 +2,8 @@ package backpackarsenal.event;
 
 import backpackarsenal.BackpackArsenalMod;
 import backpackarsenal.init.ArsenalItems;
-import backpackarsenal.inventory.ChargeSlotInventory;
 import backpackarsenal.item.VoltaicBladeItem;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
@@ -55,6 +52,9 @@ public class BackpackChargingHandler {
         });
     }
 
+    /** countVoltaicChargerUpgrades の診断ログを一定間隔で出すための tick counter */
+    private static int debugLogTick = 0;
+
     /**
      * backpack 内の有効な VoltaicChargerUpgrade 枚数。
      * SB の IBackpackWrapper.getUpgradeHandler().getSlotWrappers() を走査。
@@ -62,66 +62,55 @@ public class BackpackChargingHandler {
     private static int countVoltaicChargerUpgrades(ItemStack backpackStack) {
         var capOpt = backpackStack.getCapability(
             net.p3pp3rf1y.sophisticatedbackpacks.api.CapabilityBackpackWrapper.getCapabilityInstance());
-        if (!capOpt.isPresent()) return 0;
+        if (!capOpt.isPresent()) {
+            maybeLog("no IBackpackWrapper cap on stack={}", backpackStack);
+            return 0;
+        }
         int[] count = {0};
+        int[] totalSeen = {0};
+        StringBuilder typeNames = new StringBuilder();
         capOpt.ifPresent(wrapper -> {
             try {
                 wrapper.getUpgradeHandler().getSlotWrappers().values().forEach(w -> {
-                    if (w == null) return;
+                    totalSeen[0]++;
+                    if (w == null) {
+                        typeNames.append("null,");
+                        return;
+                    }
+                    typeNames.append(w.getClass().getSimpleName())
+                        .append(w.isEnabled() ? "" : "(disabled)")
+                        .append(',');
                     if (!w.isEnabled()) return;
                     if (w instanceof backpackarsenal.upgrade.VoltaicChargerUpgradeWrapper) {
                         count[0]++;
                     }
                 });
-            } catch (Throwable ignored) {
-                // SB の内部 API が変わって NPE 等が出てもチャージ自体は止めない
+            } catch (Throwable t) {
+                BackpackArsenalMod.LOGGER.warn(
+                    "[backpack_arsenal] countVoltaicChargerUpgrades threw: {}", t.toString());
             }
         });
+        if (totalSeen[0] > 0) {
+            maybeLog("upgrades seen={} match={} types=[{}]",
+                totalSeen[0], count[0], typeNames);
+        }
         return count[0];
     }
 
-    /** バックパックの中身 + 専用充電スロットを走査して VoltaicBlade を充電する。
-     *
-     *  - ArsenalBackpack の場合は 専用充電スロットのみ 充電し、通常スロットは「保管のみ」。
-     *  - vanilla SB backpack の場合は 通常スロット内の voltaic_blade を充電する
-     *    (ネストされたバックパックは再帰的に処理)。
-     */
-    private static void chargeAllKatanasInside(ItemStack backpackStack, int chargeAmount) {
-        if (backpackStack.getItem() == ArsenalItems.ARSENAL_BACKPACK.get()) {
-            // ArsenalBackpack: 専用充電スロットのみ
-            chargeArsenalDedicatedSlot(backpackStack, chargeAmount);
-            // ネストされた sub-backpack だけは中も再帰
-            backpackStack.getCapability(ForgeCapabilities.ITEM_HANDLER).ifPresent(handler -> {
-                for (int slot = 0; slot < handler.getSlots(); slot++) {
-                    ItemStack inner = handler.getStackInSlot(slot);
-                    if (!inner.isEmpty() && isSophisticatedBackpack(inner)) {
-                        chargeAllKatanasInside(inner, chargeAmount);
-                    }
-                }
-            });
-        } else {
-            // vanilla SB backpack: 通常スロットを再帰的に走査して充電
-            backpackStack.getCapability(ForgeCapabilities.ITEM_HANDLER).ifPresent(handler -> {
-                chargeKatanasInHandler(handler, chargeAmount);
-            });
+    /** 5 秒に 1 回程度ログ出力 (毎 tick だとログが溢れるので throttle) */
+    private static void maybeLog(String fmt, Object... args) {
+        debugLogTick++;
+        if (debugLogTick % 10 == 0) {  // 10回呼ばれるごと = scan interval 10t * 10 = 100t = 5秒
+            BackpackArsenalMod.LOGGER.info("[backpack_arsenal] " + fmt, args);
         }
     }
 
-    /** ArsenalBackpack の専用スロット (NBT "ArsenalChargeSlot") に入った VoltaicBlade を充電 */
-    private static void chargeArsenalDedicatedSlot(ItemStack backpackStack, int chargeAmount) {
-        CompoundTag tag = backpackStack.getTag();
-        if (tag == null || !tag.contains(ChargeSlotInventory.NBT_KEY, 10)) return;
-
-        ChargeSlotInventory dedicated = new ChargeSlotInventory(backpackStack);
-        ItemStack inSlot = dedicated.getStackInSlot(0);
-        if (inSlot.isEmpty()) return;
-        if (inSlot.getItem() != ArsenalItems.VOLTAIC_BLADE.get()) return;
-
-        int before = VoltaicBladeItem.getCharge(inSlot);
-        if (before >= VoltaicBladeItem.getMaxCharge(inSlot)) return;
-        VoltaicBladeItem.addCharge(inSlot, chargeAmount);
-        // ChargeSlotInventory.onContentsChanged → owner NBT 書き戻しのため、明示的に setStackInSlot
-        dedicated.setStackInSlot(0, inSlot);
+    /** バックパックの中身を走査して VoltaicBlade を充電する。
+     *  ArsenalBackpack も vanilla SB backpack も同じパス。
+     *  ネストされた sub-backpack は再帰的に処理。 */
+    private static void chargeAllKatanasInside(ItemStack backpackStack, int chargeAmount) {
+        backpackStack.getCapability(ForgeCapabilities.ITEM_HANDLER).ifPresent(handler ->
+            chargeKatanasInHandler(handler, chargeAmount));
     }
 
     /** IItemHandler を再帰的に走査（ネストしたバックパックにも対応） */

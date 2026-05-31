@@ -5,6 +5,8 @@
   "item.backpack_arsenal.voltaic_blade.element_tooltip": "§d電気属性 Lv %s（発動中）",
   "item.backpack_arsenal.voltaic_blade.need_charge_tooltip": "§7Sophisticated Backpack に納刀して充電してください",
   "item.backpack_arsenal.arsenal_backpack": "アーセナル・バックパック",
+  "item.backpack_arsenal.basic_backpack": "ベーシック・バックパック",
+  "item.backpack_arsenal.basic_backpack.tooltip": "§7充電機能の無い普通のバックパック。",
   "item.backpack_arsenal.arsenal_backpack.stored": "§b納刀中: %s (%s / %s)",
   "item.backpack_arsenal.arsenal_backpack.stored_regular": "§7ポケット収納: %s 本",
   "item.backpack_arsenal.voltaic_charger_upgrade": "雷光チャージャー・アップグレード",

@@ -1,7 +1,6 @@
 package backpackarsenal.network;
 
 import backpackarsenal.init.ArsenalItems;
-import backpackarsenal.inventory.ChargeSlotInventory;
 import backpackarsenal.util.BackpackScanner;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
@@ -19,10 +18,8 @@ import java.util.List;
 import java.util.function.Supplier;
 
 /**
- * Client → Server: ArsenalBackpack (inv or curios "back") の中から voltaic_blade を
- * 1本取り出してメインハンドへ swap。優先順:
- *   (1) 専用充電スロット
- *   (2) 通常スロット
+ * Client → Server: ArsenalBackpack (inv or curios "back") の通常スロットから
+ * voltaic_blade を 1本取り出してメインハンドへ swap。
  *
  * arsenal_backpack 限定 (バニラ SB バックパックは対象外)。
  */
@@ -55,26 +52,6 @@ public class DrawFromBackpackPacket {
         BackpackScanner.forEachArsenalBackpack(player, backpacks::add);
 
         for (ItemStack backpackStack : backpacks) {
-            // (1) 専用充電スロット
-            ChargeSlotInventory charge = new ChargeSlotInventory(backpackStack);
-            ItemStack inCharge = charge.getStackInSlot(0);
-            if (inCharge.getItem() == ArsenalItems.VOLTAIC_BLADE.get()) {
-                ItemStack mainHand = player.getMainHandItem().copy();
-                ItemStack drawn = inCharge.copy();
-                player.setItemInHand(InteractionHand.MAIN_HAND, drawn);
-                // 充電スロットは voltaic_blade のみ受理。それ以外の元手持ちは inventory へ。
-                if (mainHand.isEmpty()
-                        || mainHand.getItem() == ArsenalItems.VOLTAIC_BLADE.get()) {
-                    charge.setStackInSlot(0, mainHand);
-                } else {
-                    charge.setStackInSlot(0, ItemStack.EMPTY);
-                    player.getInventory().placeItemBackInInventory(mainHand);
-                }
-                drawSound(player);
-                return;
-            }
-
-            // (2) 通常スロット
             IItemHandler handler = backpackStack
                 .getCapability(ForgeCapabilities.ITEM_HANDLER)
                 .orElse(null);
