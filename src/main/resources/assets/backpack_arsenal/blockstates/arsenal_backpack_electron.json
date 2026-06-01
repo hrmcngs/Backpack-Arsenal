@@ -1,0 +1,9 @@
+{
+  "_comment": "FACING のみで描画モデルを切替。LEFT_TANK/RIGHT_TANK/BATTERY/OPEN プロパティは無視 (multipart は部分マッチ可)。",
+  "multipart": [
+    { "when": { "facing": "north" }, "apply": { "model": "backpack_arsenal:block/arsenal_backpack_electron" } },
+    { "when": { "facing": "east"  }, "apply": { "model": "backpack_arsenal:block/arsenal_backpack_electron", "y": 90 } },
+    { "when": { "facing": "south" }, "apply": { "model": "backpack_arsenal:block/arsenal_backpack_electron", "y": 180 } },
+    { "when": { "facing": "west"  }, "apply": { "model": "backpack_arsenal:block/arsenal_backpack_electron", "y": 270 } }
+  ]
+}

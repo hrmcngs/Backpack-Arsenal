@@ -55,7 +55,7 @@ public class BackpackOpenInterceptor {
         final boolean isArsenal;
         try {
             isArsenal = ctx.getBackpackWrapper(player).getBackpack().getItem()
-                == ArsenalItems.ARSENAL_BACKPACK.get();
+                == ArsenalItems.ARSENAL_BACKPACK_ELECTRON.get();
         } catch (Throwable t) {
             return;
         }

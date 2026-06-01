@@ -141,7 +141,7 @@ public class BackpackChargingHandler {
     public static boolean isSophisticatedBackpack(ItemStack stack) {
         if (stack.isEmpty()) return false;
         // 自前の ArsenalBackpack (SB BackpackItem 拡張) も充電対象に含める
-        if (stack.getItem() == ArsenalItems.ARSENAL_BACKPACK.get()) return true;
+        if (stack.getItem() == ArsenalItems.ARSENAL_BACKPACK_ELECTRON.get()) return true;
 
         ResourceLocation id = ForgeRegistries.ITEMS.getKey(stack.getItem());
         if (id == null) return false;

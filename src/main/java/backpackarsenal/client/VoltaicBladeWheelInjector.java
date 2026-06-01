@@ -180,6 +180,6 @@ public class VoltaicBladeWheelInjector {
 
     /** ArsenalBackpack 限定判定 (バニラ SB バックパックは false) */
     public static boolean isArsenalBackpack(ItemStack stack) {
-        return !stack.isEmpty() && stack.getItem() == ArsenalItems.ARSENAL_BACKPACK.get();
+        return !stack.isEmpty() && stack.getItem() == ArsenalItems.ARSENAL_BACKPACK_ELECTRON.get();
     }
 }

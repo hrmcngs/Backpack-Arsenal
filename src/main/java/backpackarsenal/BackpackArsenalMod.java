@@ -42,6 +42,7 @@ public class BackpackArsenalMod {
         backpackarsenal.init.ArsenalBackpackConfig.load();
 
         ArsenalItems.REGISTRY.register(modBus);
+        backpackarsenal.init.ArsenalBlocks.REGISTRY.register(modBus);
         backpackarsenal.init.ArsenalMenuTypes.REGISTRY.register(modBus);
         backpackarsenal.init.ArsenalCreativeTab.REGISTRY.register(modBus);
         modBus.addListener(this::onCommonSetup);
@@ -58,7 +59,50 @@ public class BackpackArsenalMod {
         event.enqueueWork(() -> {
             BackpackArsenalNetwork.register();
             registerSkills();
+            injectBlockIntoBackpackTileType();
         });
+    }
+
+    /**
+     * SB の {@code BackpackBlockEntityType.validBlocks} に独自ブロックを reflection で追加。
+     *
+     * これがないと、設置したブロックに BackpackBlockEntity を attach できず、置いた瞬間に
+     * 「無効な BlockEntity」として剥がれる/動作しない。
+     *
+     * {@code BlockEntityType.validBlocks} は {@code ImmutableSet<Block>} なので、
+     * 新規 ImmutableSet を作って差し替える。Mojang / SRG 両 mapping にフォールバック。
+     */
+    private void injectBlockIntoBackpackTileType() {
+        try {
+            net.minecraft.world.level.block.entity.BlockEntityType<?> beType =
+                net.p3pp3rf1y.sophisticatedbackpacks.init.ModBlocks.BACKPACK_TILE_TYPE.get();
+            net.minecraft.world.level.block.Block ourBlock =
+                backpackarsenal.init.ArsenalBlocks.ARSENAL_BACKPACK_ELECTRON_BLOCK.get();
+
+            java.lang.reflect.Field validBlocksField;
+            try {
+                validBlocksField = net.minecraft.world.level.block.entity.BlockEntityType.class
+                    .getDeclaredField("validBlocks");
+            } catch (NoSuchFieldException e) {
+                // SRG (production) fallback
+                validBlocksField = net.minecraft.world.level.block.entity.BlockEntityType.class
+                    .getDeclaredField("f_58915_");
+            }
+            validBlocksField.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            java.util.Set<net.minecraft.world.level.block.Block> oldValid =
+                (java.util.Set<net.minecraft.world.level.block.Block>) validBlocksField.get(beType);
+            java.util.Set<net.minecraft.world.level.block.Block> newValid =
+                new java.util.HashSet<>(oldValid);
+            newValid.add(ourBlock);
+            validBlocksField.set(beType, java.util.Set.copyOf(newValid));
+            LOGGER.info("[{}] Injected {} into BackpackBlockEntityType.validBlocks (now {} entries)",
+                MODID, ourBlock, newValid.size());
+        } catch (Throwable t) {
+            LOGGER.error(
+                "[{}] Failed to inject custom block into BackpackBlockEntityType — placed block won't function as backpack",
+                MODID, t);
+        }
     }
 
     /** Screen を MenuType に紐付ける (client のみ)。
@@ -94,7 +138,7 @@ public class BackpackArsenalMod {
             // 影響を受けない。
             try {
                 top.theillusivec4.curios.api.client.CuriosRendererRegistry.register(
-                    backpackarsenal.init.ArsenalItems.ARSENAL_BACKPACK.get(),
+                    backpackarsenal.init.ArsenalItems.ARSENAL_BACKPACK_ELECTRON.get(),
                     net.p3pp3rf1y.sophisticatedbackpacks.compat.curios.BackpackCurioRenderer::new
                 );
                 top.theillusivec4.curios.api.client.CuriosRendererRegistry.register(

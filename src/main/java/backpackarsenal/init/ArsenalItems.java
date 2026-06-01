@@ -21,9 +21,10 @@ public class ArsenalItems {
     public static final RegistryObject<Item> VOLTAIC_BLADE =
         REGISTRY.register("voltaic_blade", VoltaicBladeItem::new);
 
-    /** Arsenal Backpack — 充電機能付きの独自グレードバックパック (SB BackpackItem 拡張) */
-    public static final RegistryObject<Item> ARSENAL_BACKPACK =
-        REGISTRY.register("arsenal_backpack", ArsenalBackpackItem::new);
+    /** Arsenal Backpack (Electron 系) — 充電機能付きの独自グレードバックパック (SB BackpackItem 拡張)。
+     *  今後 Fire / Ice 等の variant を追加する想定で suffix を付けている。 */
+    public static final RegistryObject<Item> ARSENAL_BACKPACK_ELECTRON =
+        REGISTRY.register("arsenal_backpack_electron", ArsenalBackpackItem::new);
 
     /** Voltaic Charger Upgrade — backpack のアップグレードスロットに挿すと voltaic_blade
      *  の充電速度が枚数だけ倍率アップ (1枚=2倍、2枚=3倍...) */

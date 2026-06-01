@@ -24,7 +24,7 @@ public class RightClickDebugHandler {
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onRightClickItem(PlayerInteractEvent.RightClickItem event) {
         ItemStack stack = event.getItemStack();
-        boolean isArsenal = stack.getItem() == ArsenalItems.ARSENAL_BACKPACK.get();
+        boolean isArsenal = stack.getItem() == ArsenalItems.ARSENAL_BACKPACK_ELECTRON.get();
         BackpackArsenalMod.LOGGER.info(
             "[backpack_arsenal] RightClickItem fired: side={}, hand={}, item={}, isArsenalBackpack={}, canceled={}",
             event.getLevel().isClientSide ? "CLIENT" : "SERVER",
@@ -38,7 +38,7 @@ public class RightClickDebugHandler {
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onRightClickEmpty(PlayerInteractEvent.RightClickEmpty event) {
         ItemStack stack = event.getItemStack();
-        boolean isArsenal = stack.getItem() == ArsenalItems.ARSENAL_BACKPACK.get();
+        boolean isArsenal = stack.getItem() == ArsenalItems.ARSENAL_BACKPACK_ELECTRON.get();
         if (isArsenal) {
             BackpackArsenalMod.LOGGER.info(
                 "[backpack_arsenal] RightClickEmpty fired: hand={}, isArsenalBackpack={}",
@@ -49,7 +49,7 @@ public class RightClickDebugHandler {
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onRightClickItemLowest(PlayerInteractEvent.RightClickItem event) {
         ItemStack stack = event.getItemStack();
-        boolean isArsenal = stack.getItem() == ArsenalItems.ARSENAL_BACKPACK.get();
+        boolean isArsenal = stack.getItem() == ArsenalItems.ARSENAL_BACKPACK_ELECTRON.get();
         if (isArsenal) {
             BackpackArsenalMod.LOGGER.info(
                 "[backpack_arsenal] RightClickItem LOWEST priority check: canceled={}, result={}",

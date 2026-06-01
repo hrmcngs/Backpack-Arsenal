@@ -1,0 +1,20 @@
+{
+  "_comment": "ブロック破壊時に NBT (charge / inventory / upgrades 等) を保持したまま arsenal_backpack_electron アイテムをドロップする。SB の copy_backpack_data 関数を流用。",
+  "type": "minecraft:block",
+  "pools": [
+    {
+      "rolls": 1.0,
+      "bonus_rolls": 0.0,
+      "name": "main",
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "backpack_arsenal:arsenal_backpack_electron"
+        }
+      ],
+      "functions": [
+        { "function": "sophisticatedbackpacks:copy_backpack_data" }
+      ]
+    }
+  ]
+}

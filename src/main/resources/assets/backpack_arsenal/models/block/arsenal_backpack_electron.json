@@ -1,0 +1,4 @@
+{
+  "_comment": "アイテムモデル (3D elements) をそのまま流用。display 変換はブロック描画では無視されるので継承して問題なし。",
+  "parent": "backpack_arsenal:item/arsenal_backpack_electron"
+}

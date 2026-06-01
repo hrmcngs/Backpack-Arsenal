@@ -20,7 +20,7 @@ public class ArsenalMenuTypes {
 
     public static final RegistryObject<MenuType<ArsenalBackpackContainer>> ARSENAL_BACKPACK_MENU =
         REGISTRY.register(
-            "arsenal_backpack",
+            "arsenal_backpack_electron",
             () -> IForgeMenuType.create(ArsenalBackpackContainer::fromBuffer)
         );
 }

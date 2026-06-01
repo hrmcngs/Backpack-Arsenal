@@ -20,7 +20,6 @@ import net.minecraftforge.network.NetworkHooks;
 import net.p3pp3rf1y.sophisticatedbackpacks.backpack.BackpackBlock;
 import net.p3pp3rf1y.sophisticatedbackpacks.backpack.BackpackItem;
 import net.p3pp3rf1y.sophisticatedbackpacks.common.gui.BackpackContext;
-import net.p3pp3rf1y.sophisticatedbackpacks.init.ModBlocks;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -59,7 +58,9 @@ public class ArsenalBackpackItem extends BackpackItem {
             // lambda が呼ばれる度に config の現在値を読むので、reload で動的反映可能
             () -> backpackarsenal.init.ArsenalBackpackConfig.inventorySlots,
             () -> backpackarsenal.init.ArsenalBackpackConfig.upgradeSlots,
-            (Supplier<BackpackBlock>) ModBlocks.BACKPACK::get,
+            // 設置時の見た目をカスタム 3D モデルにするため独自 Block を渡す。
+            // 元は ModBlocks.BACKPACK::get (SB 標準) だった。
+            (Supplier<BackpackBlock>) backpackarsenal.init.ArsenalBlocks.ARSENAL_BACKPACK_ELECTRON_BLOCK::get,
             (UnaryOperator<Item.Properties>) props -> props.rarity(Rarity.UNCOMMON).stacksTo(1)
         );
     }
@@ -83,7 +84,7 @@ public class ArsenalBackpackItem extends BackpackItem {
         int countInRegular = countVoltaicInRegularSlots(stack);
         if (countInRegular > 0) {
             tooltip.add(Component.translatable(
-                    "item.backpack_arsenal.arsenal_backpack.stored_regular",
+                    "item.backpack_arsenal.arsenal_backpack_electron.stored_regular",
                     countInRegular
             ).withStyle(ChatFormatting.GRAY));
         }
