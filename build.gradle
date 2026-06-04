@@ -14,9 +14,73 @@ apply plugin: 'eclipse'
 // Backpack Arsenal — Sophisticated Backpacks 連携アドオン
 // 本体: The four primitives and Weapons
 // =====================================================================
-version = '1.0.0'
+// =====================================================================
+// version 解決順:
+//   1. -Pmod_version=X.Y.Z で明示指定 (CI 用)
+//   2. build/cf_latest_version.txt (./gradlew fetchCfVersion で更新)
+//   3. gradle.properties の mod_version (デフォルト, 手動 bump)
+//   4. ハードコード fallback
+// =====================================================================
+def cfCacheFile = file("${buildDir}/cf_latest_version.txt")
+def cfCachedVersion = cfCacheFile.exists() ? cfCacheFile.text.trim() : null
+version = (project.findProperty('mod_version_override')
+        ?: cfCachedVersion
+        ?: project.findProperty('mod_version')
+        ?: '1.0.0')
 group   = 'com.example.backpackarsenal'
 archivesBaseName = 'backpack-arsenal'
+
+// =====================================================================
+// fetchCfVersion — CurseForge (cfwidget.com 経由) の最新公開バージョンを取得し
+// build/cf_latest_version.txt に書き出す。次回ビルドはその値を採用する。
+//
+// cfwidget は CurseForge を Cloudflare 越しに proxy してくれる無料公開 API。
+// 認証不要だが、新規 MOD はページが承認・インデックスされるまで 404 を返す。
+// 失敗時 (network 不通 / 404 / parse error) はキャッシュを更新せず、現状の
+// gradle.properties 値が引き続き使われる。
+//
+// 使い方:
+//   ./gradlew fetchCfVersion        # キャッシュ更新のみ
+//   ./gradlew fetchCfVersion build  # 更新 → そのまま build
+// =====================================================================
+tasks.register('fetchCfVersion') {
+    group = 'versioning'
+    description = 'Fetch latest CurseForge version via cfwidget and cache it for the build.'
+    doLast {
+        def url = 'https://api.cfwidget.com/minecraft/mc-mods/arsenal-backpack'
+        try {
+            def conn = new java.net.URL(url).openConnection()
+            conn.connectTimeout = 5000
+            conn.readTimeout = 10000
+            conn.setRequestProperty('User-Agent', 'backpack-arsenal-build')
+            def code = conn.responseCode
+            if (code != 200) {
+                logger.warn("[fetchCfVersion] cfwidget returned HTTP ${code} — keeping existing version.")
+                return
+            }
+            def json = new groovy.json.JsonSlurper().parse(conn.inputStream)
+            def files = json.files ?: []
+            if (files.isEmpty()) {
+                logger.warn("[fetchCfVersion] no files on CurseForge yet — keeping existing version.")
+                return
+            }
+            // files は upload 順 (新しい順)。display という名前のフィールドに
+            // 我々が指定した mod_version 文字列が入っている。
+            def latest = files[0].display ?: files[0].name ?: files[0].version
+            if (!latest) {
+                logger.warn("[fetchCfVersion] couldn't parse version field from cfwidget — keeping existing.")
+                return
+            }
+            cfCacheFile.parentFile.mkdirs()
+            cfCacheFile.text = latest.toString().trim()
+            logger.lifecycle("[fetchCfVersion] cached CurseForge version: ${latest}")
+            logger.lifecycle("[fetchCfVersion]   → next build will use version=${latest}")
+            logger.lifecycle("[fetchCfVersion]   bump?  edit gradle.properties (mod_version=) or pass -Pmod_version_override=X.Y.Z")
+        } catch (Throwable t) {
+            logger.warn("[fetchCfVersion] failed to fetch from cfwidget: ${t.message} — keeping existing version.")
+        }
+    }
+}
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
@@ -147,8 +211,9 @@ dependencies {
 
 processResources {
     inputs.property 'mc_version', mc_version
+    inputs.property 'mod_version', version
     filesMatching('META-INF/mods.toml') {
-        expand 'mc_version': mc_version
+        expand 'mc_version': mc_version, 'mod_version': version
     }
 }
 

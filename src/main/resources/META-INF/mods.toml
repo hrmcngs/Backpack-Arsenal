@@ -4,7 +4,7 @@ license="MIT"
 
 [[mods]]
 modId="backpack_arsenal"
-version="1.0.0"
+version="${mod_version}"
 displayName="Backpack Arsenal"
 logoFile="assets/backpack_arsenal/textures/icon.png"
 description='''

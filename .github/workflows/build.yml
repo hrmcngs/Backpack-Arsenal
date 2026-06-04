@@ -1,0 +1,196 @@
+name: Build & CurseForge
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, closed]
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'CurseForge release type'
+        required: true
+        default: 'alpha'
+        type: choice
+        options: [alpha, beta, release]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────
+  # PR 本文 / dispatch 入力から release type を決める
+  # ───────────────────────────────────────────────────────────────────
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      release_type: ${{ steps.parse.outputs.release_type }}
+      should_upload: ${{ steps.parse.outputs.should_upload }}
+    steps:
+      - name: Resolve release type and upload decision
+        id: parse
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          RELEASE_TYPE="alpha"
+          SHOULD_UPLOAD="false"
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            RELEASE_TYPE="${{ inputs.release_type }}"
+            SHOULD_UPLOAD="true"
+          elif [ "${{ github.event_name }}" = "pull_request" ] && \
+               [ "${{ github.event.action }}" = "closed" ] && \
+               [ "${{ github.event.pull_request.merged }}" = "true" ]; then
+            SHOULD_UPLOAD="true"
+            # PR 本文の checkbox を解析。優先度: Release > Beta > Alpha。
+            if echo "$PR_BODY" | grep -qiE '^- \[x\] \*\*Release\*\*'; then
+              RELEASE_TYPE="release"
+            elif echo "$PR_BODY" | grep -qiE '^- \[x\] \*\*Beta\*\*'; then
+              RELEASE_TYPE="beta"
+            else
+              RELEASE_TYPE="alpha"
+            fi
+          fi
+
+          echo "release_type=$RELEASE_TYPE" >> "$GITHUB_OUTPUT"
+          echo "should_upload=$SHOULD_UPLOAD" >> "$GITHUB_OUTPUT"
+          echo "::notice::release_type=$RELEASE_TYPE should_upload=$SHOULD_UPLOAD"
+
+  # ───────────────────────────────────────────────────────────────────
+  # ビルド本体。PR では check 用、merge 後はアップロード用 jar を生成。
+  # ───────────────────────────────────────────────────────────────────
+  build:
+    needs: resolve
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      jar_name: ${{ steps.findjar.outputs.jar_name }}
+      mod_version: ${{ steps.findjar.outputs.mod_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      # MAW jar を GitHub Release から取得。
+      # 事前に repository variable MAW_JAR_URL を設定しておくこと:
+      #   Settings → Secrets and variables → Actions → Variables → New
+      #   Name: MAW_JAR_URL
+      #   Value: https://github.com/<owner>/The-four-primitives-and-Weapons/releases/download/<tag>/<file>.jar
+      - name: Fetch MAW jar from GitHub Release
+        env:
+          MAW_JAR_URL: ${{ vars.MAW_JAR_URL }}
+        run: |
+          MAW_DIR=libs/local/the_four_primitives_and_weapons/1.20.1-test
+          mkdir -p "$MAW_DIR"
+          DEST="$MAW_DIR/the_four_primitives_and_weapons-1.20.1-test.jar"
+          if [ -z "$MAW_JAR_URL" ]; then
+            echo "::error::repo variable MAW_JAR_URL is not set. See Settings → Variables."
+            exit 1
+          fi
+          curl -L --fail -o "$DEST" "$MAW_JAR_URL"
+          echo "Downloaded MAW jar: $(ls -lh "$DEST")"
+
+      - name: Fetch latest CurseForge version (best-effort)
+        run: ./gradlew fetchCfVersion --no-daemon
+        continue-on-error: true
+
+      - name: Build
+        run: ./gradlew build --no-daemon --stacktrace
+
+      - name: Locate built jar
+        id: findjar
+        run: |
+          JAR=$(ls build/libs/*.jar | grep -v sources | grep -v javadoc | head -1)
+          VERSION=$(unzip -p "$JAR" META-INF/mods.toml | grep '^version=' | sed 's/version="\(.*\)"/\1/')
+          echo "jar_name=$(basename $JAR)" >> "$GITHUB_OUTPUT"
+          echo "mod_version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "::notice::jar=$JAR mod_version=$VERSION"
+
+      - name: Upload jar artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backpack-arsenal-jar
+          path: build/libs/*.jar
+          if-no-files-found: error
+          retention-days: 30
+
+  # ───────────────────────────────────────────────────────────────────
+  # CurseForge アップロード。
+  # `environment: curseforge` の Required Reviewers ルールでゲートされる。
+  #
+  # セットアップ (リポジトリ管理者):
+  #   1. Settings → Environments → New environment "curseforge"
+  #   2. Required reviewers にメンテナを追加 (承認ゲート)
+  #   3. Environment secrets に CURSEFORGE_TOKEN を追加
+  #      (CurseForge → My Account → API Tokens で発行)
+  #   4. Environment secrets / variables に CURSEFORGE_PROJECT_ID を追加
+  #   5. Repository variable に CF_GAME_VERSION_IDS を追加
+  #      (CurseForge 1.20.1 + Forge の数値 ID をカンマ区切りで、例: "9990,7498")
+  # ───────────────────────────────────────────────────────────────────
+  curseforge_upload:
+    needs: [resolve, build]
+    if: needs.resolve.outputs.should_upload == 'true'
+    runs-on: ubuntu-latest
+    environment: curseforge
+    steps:
+      - name: Download built jar
+        uses: actions/download-artifact@v4
+        with:
+          name: backpack-arsenal-jar
+          path: dist
+
+      - name: Upload to CurseForge
+        env:
+          CF_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
+          CF_PROJECT_ID: ${{ secrets.CURSEFORGE_PROJECT_ID }}
+          CF_GAME_VERSION_IDS: ${{ vars.CF_GAME_VERSION_IDS }}
+          RELEASE_TYPE: ${{ needs.resolve.outputs.release_type }}
+          MOD_VERSION: ${{ needs.build.outputs.mod_version }}
+        run: |
+          set -e
+          if [ -z "$CF_TOKEN" ] || [ -z "$CF_PROJECT_ID" ] || [ -z "$CF_GAME_VERSION_IDS" ]; then
+            echo "::error::Missing required secret/variable: CURSEFORGE_TOKEN / CURSEFORGE_PROJECT_ID / CF_GAME_VERSION_IDS"
+            exit 1
+          fi
+          JAR=$(ls dist/*.jar | grep -v sources | grep -v javadoc | head -1)
+          GAME_VER_JSON=$(echo "[$CF_GAME_VERSION_IDS]")
+
+          # changelog は最新コミットメッセージ
+          CHANGELOG=$(git log -1 --pretty=%B 2>/dev/null || echo "Automated release: $MOD_VERSION")
+
+          METADATA=$(jq -nc \
+            --arg cl "$CHANGELOG" \
+            --arg rt "$RELEASE_TYPE" \
+            --argjson gv "$GAME_VER_JSON" \
+            '{ changelog: $cl, changelogType: "markdown", releaseType: $rt, gameVersions: $gv }')
+
+          echo "Uploading $(basename $JAR) as $RELEASE_TYPE..."
+          echo "Metadata: $METADATA"
+
+          HTTP=$(curl -sS -o response.json -w "%{http_code}" \
+            -H "X-Api-Token: $CF_TOKEN" \
+            -F "metadata=$METADATA" \
+            -F "file=@$JAR" \
+            "https://minecraft.curseforge.com/api/projects/$CF_PROJECT_ID/upload-file")
+
+          echo "HTTP $HTTP"
+          cat response.json
+          if [ "$HTTP" != "200" ]; then
+            echo "::error::CurseForge upload failed with HTTP $HTTP"
+            exit 1
+          fi
+          echo "::notice::Uploaded $(basename $JAR) ($RELEASE_TYPE) to CurseForge."
