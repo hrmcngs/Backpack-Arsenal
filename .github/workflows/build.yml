@@ -76,12 +76,21 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Cache Gradle dependencies
+      # Gradle 本体 + Forge MCP cache + project build キャッシュ。
+      # forge_gradle/* は MCP 環境構築 (mappings deobf 等) の重い成果物が
+      # ぶら下がるので最優先でキャッシュする (初回 4-5 分 → ヒット時 30秒〜1分)。
+      - name: Cache Gradle + Forge MCP
         uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
+            ~/.gradle/caches/forge_gradle
+            build/createMcpToSrg
+            build/createSrgToMcp
+            build/extractSrg
+            build/downloadMCMeta
+            build/downloadMcpConfig
           key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: gradle-${{ runner.os }}-
 
@@ -90,11 +99,14 @@ jobs:
       # MAW の新版が出たら build.gradle の maw_curse_file を更新する。
 
       - name: Fetch latest CurseForge version (best-effort)
-        run: ./gradlew fetchCfVersion --no-daemon
+        run: ./gradlew fetchCfVersion --build-cache
         continue-on-error: true
 
+      # build = assemble + check。check は test を含むが test が無いので軽い。
+      # 高速化のため --build-cache (タスク出力キャッシュ利用)、
+      # -x test (test タスク完全 skip)、--parallel (project 並列) を付ける。
       - name: Build
-        run: ./gradlew build --no-daemon --stacktrace
+        run: ./gradlew assemble --build-cache --parallel -x test
 
       - name: Locate built jar
         id: findjar
