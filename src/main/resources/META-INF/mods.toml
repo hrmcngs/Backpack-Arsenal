@@ -6,6 +6,7 @@ license="MIT"
 modId="backpack_arsenal"
 version="1.0.0"
 displayName="Backpack Arsenal"
+logoFile="assets/backpack_arsenal/textures/icon.png"
 description='''
 Sophisticated Backpacks に武器を「特殊納刀」することで充電し、
 電気属性の追加攻撃ができるようになる "The four primitives and Weapons" アドオン。
