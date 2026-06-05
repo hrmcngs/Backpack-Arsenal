@@ -43,20 +43,26 @@ jobs:
             RELEASE_TYPE="${{ inputs.release_type }}"
             SHOULD_UPLOAD="true"
           elif [ "${{ github.event_name }}" = "push" ]; then
-            SHOULD_UPLOAD="true"
-            # push commit に紐付く PR を API で検索 (merge commit の場合 1 件取れる)。
-            PR_BODY=$(gh api "repos/${{ github.repository }}/commits/$COMMIT_SHA/pulls" \
-              --jq '.[0].body // ""' 2>/dev/null || echo "")
-            if [ -z "$PR_BODY" ]; then
-              echo "::warning::No PR found for commit $COMMIT_SHA — defaulting to alpha"
-            fi
-            # 優先度: Release > Beta > Alpha
-            if echo "$PR_BODY" | grep -qiE '^- \[x\] \*\*Release\*\*'; then
-              RELEASE_TYPE="release"
-            elif echo "$PR_BODY" | grep -qiE '^- \[x\] \*\*Beta\*\*'; then
-              RELEASE_TYPE="beta"
+            # この commit に紐付く PR を API で検索 (merge commit の場合 1 件)。
+            PR_JSON=$(gh api "repos/${{ github.repository }}/commits/$COMMIT_SHA/pulls" 2>/dev/null || echo "[]")
+            PR_HEAD=$(echo "$PR_JSON" | jq -r '.[0].head.ref // ""')
+            PR_BODY=$(echo "$PR_JSON" | jq -r '.[0].body // ""')
+
+            # release/* branch からの merge PR の時だけ CF にアップロード。
+            # (普通のコード変更や直 push では upload しない)
+            if [[ "$PR_HEAD" == release/* ]]; then
+              SHOULD_UPLOAD="true"
+              echo "::notice::push from release PR ($PR_HEAD) — will upload"
+              # 優先度: Release > Beta > Alpha
+              if echo "$PR_BODY" | grep -qiE '^- \[x\] \*\*Release\*\*'; then
+                RELEASE_TYPE="release"
+              elif echo "$PR_BODY" | grep -qiE '^- \[x\] \*\*Beta\*\*'; then
+                RELEASE_TYPE="beta"
+              else
+                RELEASE_TYPE="alpha"
+              fi
             else
-              RELEASE_TYPE="alpha"
+              echo "::notice::push not from release/* PR (head='$PR_HEAD') — build only, skip upload"
             fi
           fi
 
