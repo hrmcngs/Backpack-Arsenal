@@ -1,16 +1,18 @@
-name: Auto Open PR
+name: Auto Open Release PR
 
-# main / release-* 以外のブランチに push されたら、まだ PR が無い場合は
-# github-actions[bot] が gh CLI で PR を自動 open する。
+# `release/*` branch に push されたら、まだ PR が無い場合は
+# github-actions[bot] が gh CLI で「リリース承認用 PR」を自動 open する。
+#
+# 目的: PR = jar を CurseForge にアップロードするかどうかの承認ゲート
+# (コードレビュー目的ではない)。普通の開発ブランチ (feature/* など) では
+# PR は作らない — 直接 main に push してから release branch を切る運用。
 #
 # 注意: GITHUB_TOKEN で作られた PR は `pull_request` 系イベントを発火しないため、
-# build.yml は `push: branches:[main]` トリガで merge 後に走る設計に変更している
-# (= PR 中の build 検証は手動で `workflow_dispatch` するか、merge 後に確認する)。
+# build.yml は `push: branches:[main]` トリガで merge 後に走る設計。
 
 on:
   push:
-    branches-ignore:
-      - main
+    branches:
       - 'release/**'
 
 permissions:
@@ -35,12 +37,13 @@ jobs:
 
           EXISTING=$(gh pr list --head "$BRANCH" --base main --state open --json number --jq '.[0].number // empty')
           if [ -n "$EXISTING" ]; then
-            echo "::notice::PR already exists for branch $BRANCH: #$EXISTING — skipping."
+            echo "::notice::Release PR already exists for $BRANCH: #$EXISTING — skipping."
             exit 0
           fi
 
-          TITLE="$BRANCH"
-          # body は PR テンプレートを流用 (チェックボックス全て未チェック状態で開く)
+          # release/v1.0.0-alpha → "Release: v1.0.0-alpha"
+          VERSION="${BRANCH#release/}"
+          TITLE="Release: $VERSION"
           if [ -f .github/PULL_REQUEST_TEMPLATE.md ]; then
             gh pr create \
               --base main \
@@ -54,4 +57,4 @@ jobs:
               --title "$TITLE" \
               --body "Auto-opened by github-actions from push by @$ACTOR."
           fi
-          echo "::notice::Opened PR from $BRANCH → main as github-actions[bot]"
+          echo "::notice::Opened Release PR from $BRANCH → main as github-actions[bot]"
