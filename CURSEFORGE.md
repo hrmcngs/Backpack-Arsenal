@@ -6,111 +6,6 @@
 📖 [English](#english) · [日本語](#日本語)
 
 ---
-
-## 日本語
-
-**Backpack Arsenal** は [The four primitives and Weapons (MAW)](https://www.curseforge.com/minecraft/mc-mods) のアドオン MOD です。[Sophisticated Backpacks](https://www.curseforge.com/minecraft/mc-mods/sophisticated-backpacks) を「**充電用の鞘**」として扱い、新しい電気属性の刀 — **Voltaic Blade (ボルタイック・ブレード)** に電力を貯めて雷で敵を斬ります。
-
-バックパックを背負う。中に刀を入れる。長く納刀しているほど、抜いたときの威力が上がる — そういう MOD です。
-
-### ⚡ 主な機能
-
-#### Voltaic Blade
-MAW 武器フレームワークの上に作られた刀。充電量に応じて **電気属性ダメージ** がレベルアップします。
-
-- **NBT に充電量を保存** — チャージが満ちると elemental level が Lv1 → Lv3 に上昇
-- **Sneak + 右クリック** で「**雷振り下ろし**」 — AOE 中心に模擬落雷を呼び込む
-- **右クリックスロット = 雷影回避** — 後方へクイックダッシュ + 1 秒間無敵 + 電気スパーク
-- 充電バーがツールチップにそのまま表示される
-
-#### Arsenal Backpack (Electron)
-Voltaic Blade と一緒に使う想定で作った独自グレードのバックパック。
-
-- 設置時は **カスタム 3D モデル** で描画 (当たり判定も 3D モデルをなぞる)
-- **Curios の back スロット** で背負える
-- 通常スロットに入れた刀は時間経過で自動充電
-- Sophisticated Backpacks の **アップグレード** (Stack / Pickup / Magnet / Refill ...) と完全互換
-
-#### Voltaic Charger Upgrade
-バックパックのアップグレード列に挿すと充電速度が倍率アップします。
-
-| 装着数 | 充電倍率 |
-|---|---|
-| 1 | ×2 |
-| 2 | ×3 |
-| 3 | ×4 (最大) |
-
-#### Basic Backpack
-充電機能なしの普通のバックパック。電気要素は要らないけど見た目だけ流用したい人向け。
-
-#### R キー 1 つで抜刀・納刀
-MAW のウェポンウィール用キー (**R**) を**短押し**するだけで、背負ったバックパック内の最も充電量が多い Voltaic Blade を引き抜きます。もう一度押すと納刀。**長押し**で通常のウィールが開いて、複数の刀を選べます。
-
-### 📜 クラフト
-
-| アイテム | レシピ |
-|---|---|
-| Voltaic Blade | アメジストの欠片 / 鉄インゴット / 棒 (縦並びの剣形) |
-| Arsenal Backpack (Electron) | SB の革バックパック + アメジスト + レッドストーンブロック + 鉄インゴット |
-| Voltaic Charger Upgrade | アメジスト + 銅インゴット + レッドストーン + 革 |
-
-**JEI** が入っていればすべてのレシピが自動表示されます。
-
-### 📦 必須 / 任意 MOD
-
-| MOD | 必須 |
-|---|---|
-| [Sophisticated Backpacks](https://www.curseforge.com/minecraft/mc-mods/sophisticated-backpacks) | ✅ 必須 |
-| [Sophisticated Core](https://www.curseforge.com/minecraft/mc-mods/sophisticated-core) | ✅ 必須 |
-| [The four primitives and Weapons](https://www.curseforge.com/minecraft/mc-mods) | ✅ 必須 |
-| [Curios API](https://www.curseforge.com/minecraft/mc-mods/curios) | ✅ 必須 |
-| [GeckoLib](https://www.curseforge.com/minecraft/mc-mods/geckolib) | ✅ 必須 |
-| [Just Enough Items (JEI)](https://www.curseforge.com/minecraft/mc-mods/jei) | 任意 (レシピ表示用) |
-
-### 🛠 対応バージョン
-
-- **Minecraft:** 1.20.1
-- **Forge:** 47.x 以降
-
-### ⚙ コンフィグ
-
-初回起動後に `config/backpack_arsenal.json` を編集できます。
-
-```json
-{
-  "inventorySlots": 9,
-  "upgradeSlots": 4
-}
-```
-
-`/backpack_arsenal reload` でホットリロード (OP 限定)。
-
-### 🎮 Tips
-
-- Voltaic Blade はあなたが**所持しているバックパック内**でのみ充電されます。落としたバックパックの中身は充電されません。
-- 戦闘の合間に Voltaic Charger Upgrade を重ねれば、最短で再充電できます。
-- Arsenal Backpack を **Curios の back スロット** に装備すると、ウィール経由の Draw/Sheath が背負いバックパックを優先します。
-- Sneak + 右クリックの雷振り下ろしは現在の充電量に比例。強敵戦のために温存しておくと有効です。
-
-### ❓ 既知の制限
-
-- 設置した Arsenal Backpack は **静的なカスタム 3D モデル**で描画されます。Sophisticated Backpacks の動的演出 (tank / battery バー、open アニメ、上に乗せた表示アイテム) は失われます。インベントリ / アップグレード / 充電は完全動作。
-- リネーム前 (`arsenal_backpack`) のワールドではアイテムが "unknown" になります。新レシピで作り直してください。
-
-### 📷 スクリーンショット
-
-*(CurseForge ページ側で画像 / GIF を追加してください)*
-
-### 💬 バグ報告 / 要望
-
-[GitHub Issues](https://github.com/hrmcngs/Backpack-Arsenal/issues) でお願いします。
-
-### 📄 ライセンス
-
-MIT — [LICENSE](https://github.com/hrmcngs/Backpack-Arsenal/blob/main/LICENSE) を参照。
-
----
-
 ## English
 
 **Backpack Arsenal** is an addon for [The four primitives and Weapons (MAW)](https://www.curseforge.com/minecraft/mc-mods) that turns [Sophisticated Backpacks](https://www.curseforge.com/minecraft/mc-mods/sophisticated-backpacks) into **charging sheaths** for a brand-new electric katana, the **Voltaic Blade**.
@@ -216,3 +111,109 @@ MIT — see [LICENSE](https://github.com/hrmcngs/Backpack-Arsenal/blob/main/LICE
 ---
 
 *Backpack Arsenal is a fan-made addon. "The four primitives and Weapons" and "Sophisticated Backpacks" are trademarks of their respective authors.*
+
+---
+
+## 日本語
+
+**Backpack Arsenal** は [The four primitives and Weapons (MAW)](https://www.curseforge.com/minecraft/mc-mods) のアドオン MOD です。[Sophisticated Backpacks](https://www.curseforge.com/minecraft/mc-mods/sophisticated-backpacks) を「**充電用の鞘**」として扱い、新しい電気属性の刀 — **Voltaic Blade (ボルタイック・ブレード)** に電力を貯めて雷で敵を斬ります。
+
+バックパックを背負う。中に刀を入れる。長く納刀しているほど、抜いたときの威力が上がる — そういう MOD です。
+
+### ⚡ 主な機能
+
+#### Voltaic Blade
+MAW 武器フレームワークの上に作られた刀。充電量に応じて **電気属性ダメージ** がレベルアップします。
+
+- **NBT に充電量を保存** — チャージが満ちると elemental level が Lv1 → Lv3 に上昇
+- **Sneak + 右クリック** で「**雷振り下ろし**」 — AOE 中心に模擬落雷を呼び込む
+- **右クリックスロット = 雷影回避** — 後方へクイックダッシュ + 1 秒間無敵 + 電気スパーク
+- 充電バーがツールチップにそのまま表示される
+
+#### Arsenal Backpack (Electron)
+Voltaic Blade と一緒に使う想定で作った独自グレードのバックパック。
+
+- 設置時は **カスタム 3D モデル** で描画 (当たり判定も 3D モデルをなぞる)
+- **Curios の back スロット** で背負える
+- 通常スロットに入れた刀は時間経過で自動充電
+- Sophisticated Backpacks の **アップグレード** (Stack / Pickup / Magnet / Refill ...) と完全互換
+
+#### Voltaic Charger Upgrade
+バックパックのアップグレード列に挿すと充電速度が倍率アップします。
+
+| 装着数 | 充電倍率 |
+|---|---|
+| 1 | ×2 |
+| 2 | ×3 |
+| 3 | ×4 (最大) |
+
+#### Basic Backpack
+充電機能なしの普通のバックパック。電気要素は要らないけど見た目だけ流用したい人向け。
+
+#### R キー 1 つで抜刀・納刀
+MAW のウェポンウィール用キー (**R**) を**短押し**するだけで、背負ったバックパック内の最も充電量が多い Voltaic Blade を引き抜きます。もう一度押すと納刀。**長押し**で通常のウィールが開いて、複数の刀を選べます。
+
+### 📜 クラフト
+
+| アイテム | レシピ |
+|---|---|
+| Voltaic Blade | アメジストの欠片 / 鉄インゴット / 棒 (縦並びの剣形) |
+| Arsenal Backpack (Electron) | SB の革バックパック + アメジスト + レッドストーンブロック + 鉄インゴット |
+| Voltaic Charger Upgrade | アメジスト + 銅インゴット + レッドストーン + 革 |
+
+**JEI** が入っていればすべてのレシピが自動表示されます。
+
+### 📦 必須 / 任意 MOD
+
+| MOD | 必須 |
+|---|---|
+| [Sophisticated Backpacks](https://www.curseforge.com/minecraft/mc-mods/sophisticated-backpacks) | ✅ 必須 |
+| [Sophisticated Core](https://www.curseforge.com/minecraft/mc-mods/sophisticated-core) | ✅ 必須 |
+| [The four primitives and Weapons](https://www.curseforge.com/minecraft/mc-mods) | ✅ 必須 |
+| [Curios API](https://www.curseforge.com/minecraft/mc-mods/curios) | ✅ 必須 |
+| [GeckoLib](https://www.curseforge.com/minecraft/mc-mods/geckolib) | ✅ 必須 |
+| [Just Enough Items (JEI)](https://www.curseforge.com/minecraft/mc-mods/jei) | 任意 (レシピ表示用) |
+
+### 🛠 対応バージョン
+
+- **Minecraft:** 1.20.1
+- **Forge:** 47.x 以降
+
+### ⚙ コンフィグ
+
+初回起動後に `config/backpack_arsenal.json` を編集できます。
+
+```json
+{
+  "inventorySlots": 9,
+  "upgradeSlots": 4
+}
+```
+
+`/backpack_arsenal reload` でホットリロード (OP 限定)。
+
+### 🎮 Tips
+
+- Voltaic Blade はあなたが**所持しているバックパック内**でのみ充電されます。落としたバックパックの中身は充電されません。
+- 戦闘の合間に Voltaic Charger Upgrade を重ねれば、最短で再充電できます。
+- Arsenal Backpack を **Curios の back スロット** に装備すると、ウィール経由の Draw/Sheath が背負いバックパックを優先します。
+- Sneak + 右クリックの雷振り下ろしは現在の充電量に比例。強敵戦のために温存しておくと有効です。
+
+### ❓ 既知の制限
+
+- 設置した Arsenal Backpack は **静的なカスタム 3D モデル**で描画されます。Sophisticated Backpacks の動的演出 (tank / battery バー、open アニメ、上に乗せた表示アイテム) は失われます。インベントリ / アップグレード / 充電は完全動作。
+- リネーム前 (`arsenal_backpack`) のワールドではアイテムが "unknown" になります。新レシピで作り直してください。
+
+### 📷 スクリーンショット
+
+*(CurseForge ページ側で画像 / GIF を追加してください)*
+
+### 💬 バグ報告 / 要望
+
+[GitHub Issues](https://github.com/hrmcngs/Backpack-Arsenal/issues) でお願いします。
+
+### 📄 ライセンス
+
+MIT — [LICENSE](https://github.com/hrmcngs/Backpack-Arsenal/blob/main/LICENSE) を参照。
+
+---

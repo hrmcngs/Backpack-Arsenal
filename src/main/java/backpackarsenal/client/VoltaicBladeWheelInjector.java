@@ -77,7 +77,12 @@ public class VoltaicBladeWheelInjector {
         wheelWasVisible = visible;
     }
 
-    /** wheel に Arsenal Backpack 関連エントリを注入。重複は毎 tick 作り直し。 */
+    /** wheel に Arsenal Backpack 関連エントリを注入。重複は毎 tick 作り直し。
+     *
+     *  mode の判定は MAW WheelMode に依存しているが、開幕直後など mode が未確定
+     *  (null) の tick がある。その場合は player のメインハンドの状態から fallback
+     *  推定する (= 空なら DRAW、voltaic_blade を持っていれば SHEATH)。
+     */
     private static void injectEntries(Player player, WeaponWheelState.WheelMode mode) {
         try {
             Field f = WeaponWheelState.class.getDeclaredField("drawableWeapons");
@@ -91,28 +96,34 @@ public class VoltaicBladeWheelInjector {
             list.removeIf(injectedEntries::containsKey);
             injectedEntries.clear();
 
+            // mode 未確定 / 未対応値の時はメインハンドから推定する fallback
+            ItemStack mainHand = player.getMainHandItem();
+            boolean isDrawMode  = (mode == WeaponWheelState.WheelMode.DRAW)
+                    || (mode == null && mainHand.isEmpty());
+            boolean isSheathMode = (mode == WeaponWheelState.WheelMode.SHEATH)
+                    || (mode == null && mainHand.getItem() == ArsenalItems.VOLTAIC_BLADE.get());
+
             BackpackScanner.forEachArsenalBackpackWithSource(player, (backpackStack, source) -> {
                 IItemHandler handler = backpackStack
                     .getCapability(ForgeCapabilities.ITEM_HANDLER)
                     .orElse(null);
                 if (handler == null) return;
 
-                if (mode == WeaponWheelState.WheelMode.DRAW) {
-                    // 通常スロットを走査
+                if (isDrawMode) {
                     for (int s = 0; s < handler.getSlots(); s++) {
                         ItemStack inner = handler.getStackInSlot(s);
                         if (inner.getItem() != ArsenalItems.VOLTAIC_BLADE.get()) continue;
                         addEntry(list, backpackStack, inner, source);
                     }
-                } else if (mode == WeaponWheelState.WheelMode.SHEATH) {
-                    ItemStack mainHand = player.getMainHandItem();
+                } else if (isSheathMode) {
                     if (mainHand.getItem() != ArsenalItems.VOLTAIC_BLADE.get()) return;
                     if (!hasEmptySlot(handler)) return;
                     addEntry(list, backpackStack, mainHand, source);
                 }
             });
-        } catch (Exception ignored) {
-            // reflection 失敗時はサイレントに諦める
+        } catch (Throwable t) {
+            BackpackArsenalMod.LOGGER.warn(
+                "[backpack_arsenal] wheel injection failed: {}", t.toString());
         }
     }
 
