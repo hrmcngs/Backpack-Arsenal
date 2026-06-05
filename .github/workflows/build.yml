@@ -103,10 +103,11 @@ jobs:
         continue-on-error: true
 
       # build = assemble + check。check は test を含むが test が無いので軽い。
-      # 高速化のため --build-cache (タスク出力キャッシュ利用)、
-      # -x test (test タスク完全 skip)、--parallel (project 並列) を付ける。
+      # 高速化のため --build-cache (タスク出力キャッシュ利用)、-x test (test 完全 skip)。
+      # ⚠ --parallel / --configureondemand は ForgeGradle 6 と非互換なので付けない
+      # (runClient タスクが late registered のため task graph に乗らない)。
       - name: Build
-        run: ./gradlew assemble --build-cache --parallel -x test
+        run: ./gradlew assemble --build-cache -x test
 
       - name: Locate built jar
         id: findjar
