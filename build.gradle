@@ -246,6 +246,23 @@ tasks.matching { it.name == 'downloadMCMeta' }.configureEach {
     }
 }
 
+// downloadAssets も同じく Mojang への HTTPS が必要。アセット index+objects が
+// 既に ~/.gradle/caches/forge_gradle/assets/ にキャッシュ済みならスキップする。
+tasks.matching { it.name == 'downloadAssets' }.configureEach {
+    onlyIf {
+        def assetsDir = file("${System.getProperty('user.home')}/.gradle/caches/forge_gradle/assets")
+        def indexesDir = new File(assetsDir, 'indexes')
+        def objectsDir = new File(assetsDir, 'objects')
+        boolean indexed = indexesDir.exists() && indexesDir.list().length > 0
+        boolean populated = objectsDir.exists() && objectsDir.list().length > 0
+        boolean ready = indexed && populated
+        if (ready) {
+            logger.lifecycle("[backpack-arsenal] downloadAssets skipped (cached at ${assetsDir})")
+        }
+        return !ready
+    }
+}
+
 sourceSets.main.output.resourcesDir = sourceSets.main.java.classesDirectory
 
 tasks.withType(JavaCompile).configureEach {
