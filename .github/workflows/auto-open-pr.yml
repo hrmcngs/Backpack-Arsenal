@@ -1,23 +1,11 @@
 name: Auto Open PR
 
 # main / release-* 以外のブランチに push されたら、まだ PR が無い場合は
-# github-actions bot が gh CLI で PR を自動 open する。
+# github-actions[bot] が gh CLI で PR を自動 open する。
 #
-# ⚠ PAT が必要:
-#   GITHUB_TOKEN で作った PR は他の workflow をトリガしない (GitHub の無限ループ防止仕様)。
-#   build.yml の `pull_request` トリガを発火させるため、Personal Access Token を
-#   `BOT_PAT` secret として登録する必要がある。
-#
-#   PAT 作成 (Fine-grained 推奨):
-#     1. GitHub → Settings → Developer settings → Personal access tokens → Fine-grained
-#     2. Repository access: hrmcngs/Backpack-Arsenal のみ
-#     3. Permissions:
-#        - Contents: Read
-#        - Pull requests: Read and write
-#        - Workflows: Read and write
-#     4. Repo の Settings → Secrets and variables → Actions → New secret
-#        Name: BOT_PAT
-#        Value: <発行したトークン>
+# 注意: GITHUB_TOKEN で作られた PR は `pull_request` 系イベントを発火しないため、
+# build.yml は `push: branches:[main]` トリガで merge 後に走る設計に変更している
+# (= PR 中の build 検証は手動で `workflow_dispatch` するか、merge 後に確認する)。
 
 on:
   push:
@@ -38,16 +26,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Open PR if none exists (as bot)
+      - name: Open PR if none exists (as github-actions[bot])
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: ${{ github.ref_name }}
           ACTOR: ${{ github.actor }}
         run: |
-          if [ -z "$GH_TOKEN" ]; then
-            echo "::error::BOT_PAT secret is not set. See workflow file for setup instructions."
-            exit 1
-          fi
 
           EXISTING=$(gh pr list --head "$BRANCH" --base main --state open --json number --jq '.[0].number // empty')
           if [ -n "$EXISTING" ]; then
