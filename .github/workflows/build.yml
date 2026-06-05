@@ -1,9 +1,12 @@
 name: Build & CurseForge
 
 on:
-  pull_request:
+  # main への push (= bot/手動 merge を含む) で起動。
+  # bot 経由 PR が GITHUB_TOKEN 名義のため pull_request イベントを発火しないので
+  # こちらを正規ルートにする。
+  push:
     branches: [main]
-    types: [opened, synchronize, reopened, closed]
+  # 手動実行 (release type を明示指定したいとき用)
   workflow_dispatch:
     inputs:
       release_type:
@@ -30,7 +33,8 @@ jobs:
       - name: Resolve release type and upload decision
         id: parse
         env:
-          PR_BODY: ${{ github.event.pull_request.body }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMIT_SHA: ${{ github.sha }}
         run: |
           RELEASE_TYPE="alpha"
           SHOULD_UPLOAD="false"
@@ -38,11 +42,15 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             RELEASE_TYPE="${{ inputs.release_type }}"
             SHOULD_UPLOAD="true"
-          elif [ "${{ github.event_name }}" = "pull_request" ] && \
-               [ "${{ github.event.action }}" = "closed" ] && \
-               [ "${{ github.event.pull_request.merged }}" = "true" ]; then
+          elif [ "${{ github.event_name }}" = "push" ]; then
             SHOULD_UPLOAD="true"
-            # PR 本文の checkbox を解析。優先度: Release > Beta > Alpha。
+            # push commit に紐付く PR を API で検索 (merge commit の場合 1 件取れる)。
+            PR_BODY=$(gh api "repos/${{ github.repository }}/commits/$COMMIT_SHA/pulls" \
+              --jq '.[0].body // ""' 2>/dev/null || echo "")
+            if [ -z "$PR_BODY" ]; then
+              echo "::warning::No PR found for commit $COMMIT_SHA — defaulting to alpha"
+            fi
+            # 優先度: Release > Beta > Alpha
             if echo "$PR_BODY" | grep -qiE '^- \[x\] \*\*Release\*\*'; then
               RELEASE_TYPE="release"
             elif echo "$PR_BODY" | grep -qiE '^- \[x\] \*\*Beta\*\*'; then
