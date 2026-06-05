@@ -93,35 +93,45 @@ jobs:
       # Gradle 本体 + Forge MCP cache + project build キャッシュ。
       # forge_gradle/* は MCP 環境構築 (mappings deobf 等) の重い成果物が
       # ぶら下がるので最優先でキャッシュする (初回 4-5 分 → ヒット時 30秒〜1分)。
+      #
+      # ⚠ ~/.gradle/caches を丸ごとキャッシュすると modules-metadata と
+      # forge_gradle の整合が崩れた状態で復元され、compileJava 中の MCP 再生成で
+      # "Project services has been closed" 例外を引き起こすことがある。
+      # サブディレクトリ単位で固定し、restore-keys (部分一致復元) も廃止する。
+      # cache key の "fg6-vN-" は壊れた既存キャッシュを破棄するための世代タグ。
       - name: Cache Gradle + Forge MCP
         uses: actions/cache@v4
         with:
           path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/jars-9
+            ~/.gradle/caches/transforms-3
             ~/.gradle/caches/forge_gradle
+            ~/.gradle/wrapper
             build/createMcpToSrg
             build/createSrgToMcp
             build/extractSrg
             build/downloadMCMeta
             build/downloadMcpConfig
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: gradle-${{ runner.os }}-
+          key: gradle-fg6-v3-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
 
       # 注: MAW jar は build.gradle が CurseMaven 経由 (project 961882, file 8074061)
       # で自動取得するので CI 側で何も用意する必要なし。
       # MAW の新版が出たら build.gradle の maw_curse_file を更新する。
 
       - name: Fetch latest CurseForge version (best-effort)
-        run: ./gradlew fetchCfVersion --build-cache
+        run: ./gradlew fetchCfVersion --no-daemon
         continue-on-error: true
 
       # build = assemble + check。check は test を含むが test が無いので軽い。
-      # 高速化のため --build-cache (タスク出力キャッシュ利用)、-x test (test 完全 skip)。
-      # ⚠ --parallel / --configureondemand は ForgeGradle 6 と非互換なので付けない
+      # -x test で test は完全 skip。
+      # ⚠ --build-cache は ForgeGradle 6 と相性が悪く、compileJava のタスク出力
+      # キャッシュ復元時に MCP の lazy resolution が走り、"Project services has
+      # been closed" 例外で落ちることがあるため使わない。
+      # ⚠ --parallel / --configureondemand も ForgeGradle 6 と非互換なので付けない
       # (runClient タスクが late registered のため task graph に乗らない)。
       - name: Build
-        run: ./gradlew assemble --build-cache -x test
+        run: ./gradlew assemble -x test --no-daemon
 
       - name: Locate built jar
         id: findjar
