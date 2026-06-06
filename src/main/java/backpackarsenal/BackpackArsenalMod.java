@@ -184,15 +184,15 @@ public class BackpackArsenalMod {
         );
 
         SkillRegistry.register(
-            "voltaic_dodge",
-            "雷影回避",
-            "後方へクイックダッシュ + 1秒間無敵 + 電気スパーク。Voltaic Blade 専用 (right-click スロットに割当)。",
+            "voltaic_step",
+            "雷影ステップ",
+            "電気スパークを纏った高速バックステップ + 1秒間無敵。 Voltaic Blade 専用、DASH スロットで dash_rush / leap_slash / shadow_step と並んで選択可能。",
             SkillRegistry.MotionCategory.SPECIAL,
-            EnumSet.of(PlayerSkillData.AttackSlot.RIGHT_CLICK),
+            EnumSet.of(PlayerSkillData.AttackSlot.DASH),
             weaponClass,
             new VoltaicDodgeSkillAction()
         );
 
-        LOGGER.info("[{}] Registered MAW motions: voltaic_slam_down, voltaic_dodge (VoltaicBladeItem)", MODID);
+        LOGGER.info("[{}] Registered MAW motions: voltaic_slam_down, voltaic_step (VoltaicBladeItem)", MODID);
     }
 }

@@ -13,6 +13,6 @@
   "item.backpack_arsenal.voltaic_charger_upgrade.tooltip": "§7Install in backpack upgrade slots to multiply voltaic_blade charge rate (1=2x, 2=3x, max 3)",
   "motion.the_four_primitives_and_weapons.voltaic_slam_down": "Voltaic Slam",
   "motion.the_four_primitives_and_weapons.voltaic_slam_down.desc": "Forward AOE slam. Voltaic Blade only; when charged, also calls a simulated lightning bolt at the AOE center.",
-  "motion.the_four_primitives_and_weapons.voltaic_dodge": "Voltaic Dodge",
-  "motion.the_four_primitives_and_weapons.voltaic_dodge.desc": "Quick backward dash with 1s invulnerability and electric sparks. Voltaic Blade only (right-click slot)."
+  "motion.the_four_primitives_and_weapons.voltaic_step": "Voltaic Step",
+  "motion.the_four_primitives_and_weapons.voltaic_step.desc": "High-speed back-step wrapped in electric sparks + 1s invulnerability. Voltaic Blade only (DASH slot — selectable alongside dash_rush / leap_slash / shadow_step)."
 }
