@@ -4,6 +4,6 @@
   "parent": "backpack_arsenal:custom/voltaic_blade",
   "textures": {
     "2": "backpack_arsenal:item/voltaic_blade",
-    "particle": "backpack_arsenal:custom/voltaic_blade"
+    "particle": "backpack_arsenal:item/voltaic_blade"
   }
 }

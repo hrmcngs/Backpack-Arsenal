@@ -32,8 +32,11 @@ build/*
 run/
 
 # 本体MOD jar の自動取り込み先 (build.gradle が生成)
-# 必要なら libs/local/ もコミットしないほうが軽い
-libs/local/
+# 公開 MAW (CurseForge) は旧パッケージ名のままなので、新パッケージ名の test jar を
+# CI ビルド用に同梱する。MAW が公開リリースに追いついたら libs/local/ ごと
+# .gitignore に戻して maw_curse_file 参照に切り替えてよい。
+libs/local/*
+!libs/local/the_four_primitives_and_weapons/
 
 # macOS
 .DS_Store

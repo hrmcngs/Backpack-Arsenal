@@ -170,9 +170,19 @@ public class VoltaicBladeItem extends SwordItem {
 
     // ==================== 表示 ====================
 
+    /** glint を出したい条件 (充電有 or 普通の foil)。
+     *  vanilla glint は {@link #isFoil} で常に false にして抑制し、
+     *  {@code VoltaicBladeBakedModel.getRenderTypes} がこの条件で
+     *  カスタム glint (V 軸スクロール) を追加する。 */
+    public static boolean shouldGlint(ItemStack stack) {
+        if (stack.isEmpty()) return false;
+        return getCharge(stack) > 0 || stack.isEnchanted();
+    }
+
     @Override
     public boolean isFoil(ItemStack stack) {
-        return getCharge(stack) > 0 || super.isFoil(stack);
+        // vanilla glint は無効化 (カスタム glint で代替)。
+        return false;
     }
 
     @Override
