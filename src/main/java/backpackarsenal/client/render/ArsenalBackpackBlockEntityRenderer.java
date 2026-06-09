@@ -39,20 +39,8 @@ import net.p3pp3rf1y.sophisticatedbackpacks.client.render.BackpackBlockEntityRen
 public class ArsenalBackpackBlockEntityRenderer
         implements BlockEntityRenderer<BackpackBlockEntity> {
 
-    /** 設置ブロック描画の display context。
-     *
-     * ⚠ もとは {@code ItemDisplayContext.create("BACKPACK_ARSENAL_PLACED", ...)} の
-     * カスタム context を使っていたが、 Forge 1.20.1 ではカスタム context の
-     * moddedTransforms 反映が一部経路で動作せず:
-     *   - {@link ChestBackpackLayer} は AIOOBE で crash
-     *   - 設置ブロック (本 BER) は crash しないが transform 値が JSON から拾えず、
-     *     display.placed の値が無視されサイズが実際と異なる
-     *
-     * 安全策として vanilla {@link ItemDisplayContext#FIXED} を流用する。 JSON 側は
-     * {@code display.fixed} に worn と同じ値を書き、 worn と placed が同じ大きさで
-     * 描画されるようにする。 (アイテムフレーム表示も FIXED を使うので同じ見た目に
-     * なる ── ここを別にしたい場合は別途 transform を手動適用する hack が必要) */
-    public static final ItemDisplayContext PLACED_CONTEXT = ItemDisplayContext.FIXED;
+    /** {@link BackpackArsenalMod#PLACED_CONTEXT} への薄いエイリアス (互換用)。 */
+    public static final ItemDisplayContext PLACED_CONTEXT = BackpackArsenalMod.PLACED_CONTEXT;
 
     /** BA ブロック以外 (= SB バニラ) を描画する時に丸投げするオリジナル BER の cache。 */
     private final BackpackBlockEntityRenderer sbFallback = new BackpackBlockEntityRenderer();
@@ -90,16 +78,22 @@ public class ArsenalBackpackBlockEntityRenderer
             diagLogged = true;
             // PLACED_CONTEXT で実際に使われる transform を覗いて、 fallback (FIXED) か
             // カスタム値かをログから判別できるようにする。
-            // scale が item model の display.fixed と同じなら fallback、 違う値なら
-            // display.backpack_arsenal:placed が JSON にあって効いている。
-            var bakedModel = Minecraft.getInstance().getItemRenderer().getModel(
-                stack, be.getLevel(), null, 0);
-            var transform = bakedModel.getTransforms().getTransform(PLACED_CONTEXT);
-            BackpackArsenalMod.LOGGER.info(
-                "[backpack_arsenal] ArsenalBackpackBlockEntityRenderer.render() first call: " +
-                "stack={}, facing={}, context={}, transform.scale={}, translation={}, rotation={}",
-                stack.getItem(), facing, PLACED_CONTEXT.getSerializedName(),
-                transform.scale, transform.translation, transform.rotation);
+            // try-catch: カスタム context の getTransform が AIOOBE で crash する Forge
+            // のバグを踏まないよう保険。 ログだけの問題なので失敗してもレンダリングは続ける。
+            try {
+                var bakedModel = Minecraft.getInstance().getItemRenderer().getModel(
+                    stack, be.getLevel(), null, 0);
+                var transform = bakedModel.getTransforms().getTransform(PLACED_CONTEXT);
+                BackpackArsenalMod.LOGGER.info(
+                    "[backpack_arsenal] ArsenalBackpackBlockEntityRenderer.render() first call: " +
+                    "stack={}, facing={}, context={}, transform.scale={}, translation={}, rotation={}",
+                    stack.getItem(), facing, PLACED_CONTEXT.getSerializedName(),
+                    transform.scale, transform.translation, transform.rotation);
+            } catch (Throwable t) {
+                BackpackArsenalMod.LOGGER.warn(
+                    "[backpack_arsenal] PLACED diag getTransform failed (likely Forge custom context AIOOBE): {}",
+                    t.toString());
+            }
         }
 
         poseStack.pushPose();
@@ -109,16 +103,40 @@ public class ArsenalBackpackBlockEntityRenderer
         poseStack.translate(0.5, 0.0, 0.5);
         poseStack.mulPose(Axis.YN.rotationDegrees(facing.toYRot()));
 
-        Minecraft.getInstance().getItemRenderer().renderStatic(
-            stack,
-            PLACED_CONTEXT,
-            packedLight,
-            OverlayTexture.NO_OVERLAY,
-            poseStack,
-            bufferSource,
-            be.getLevel(),
-            0
-        );
+        // try-catch で AIOOBE 保険。 PLACED の getTransform が crash した場合、
+        // 同じ poseStack のまま FIXED で再描画する (= JSON の display.fixed が適用される)。
+        ItemStack stackFinal = stack;
+        Direction facingFinal = facing;
+        try {
+            Minecraft.getInstance().getItemRenderer().renderStatic(
+                stackFinal,
+                PLACED_CONTEXT,
+                packedLight,
+                OverlayTexture.NO_OVERLAY,
+                poseStack,
+                bufferSource,
+                be.getLevel(),
+                0
+            );
+        } catch (ArrayIndexOutOfBoundsException aioobe) {
+            BackpackArsenalMod.LOGGER.warn(
+                "[backpack_arsenal] PLACED renderStatic AIOOBE — falling back to FIXED context. " +
+                "facing={}, msg={}", facingFinal, aioobe.toString());
+            try {
+                Minecraft.getInstance().getItemRenderer().renderStatic(
+                    stackFinal,
+                    ItemDisplayContext.FIXED,
+                    packedLight,
+                    OverlayTexture.NO_OVERLAY,
+                    poseStack,
+                    bufferSource,
+                    be.getLevel(),
+                    0
+                );
+            } catch (Throwable t) {
+                // give up — 1回も描画できない場合は静かに諦める
+            }
+        }
 
         poseStack.popPose();
     }

@@ -1,53 +1,67 @@
 package backpackarsenal.upgrade;
 
-import net.minecraft.resources.ResourceLocation;
-import net.p3pp3rf1y.sophisticatedcore.upgrades.IUpgradeCountLimitConfig;
-import net.p3pp3rf1y.sophisticatedcore.upgrades.IUpgradeItem;
-import net.p3pp3rf1y.sophisticatedcore.upgrades.UpgradeGroup;
+import net.minecraft.world.item.ItemStack;
+import net.p3pp3rf1y.sophisticatedbackpacks.Config;
+import net.p3pp3rf1y.sophisticatedcore.api.IStorageWrapper;
 import net.p3pp3rf1y.sophisticatedcore.upgrades.UpgradeItemBase;
 import net.p3pp3rf1y.sophisticatedcore.upgrades.UpgradeType;
+import net.p3pp3rf1y.sophisticatedcore.upgrades.UpgradeWrapperBase;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
- * Voltaic Charger Upgrade — SB バックパックのアップグレードスロットに挿せる
- * アイテム。本MOD の BackpackChargingHandler がこのアップグレード数をカウントし、
- * voltaic_blade の充電速度を倍率アップする (1枚で 2倍、2枚で 3倍 ...)。
+ * Voltaic Charger Upgrade — Sophisticated Backpacks の upgrade slot に挿せる純粋なマーカー。
+ * {@link backpackarsenal.event.BackpackChargingHandler} が
+ * {@code upgradeHandler.getTypeWrappers(TYPE)} で枚数を引き、 voltaic_blade の充電速度を倍率
+ * アップする。
  *
- * 1 backpack あたり最大 3枚 (調整可)。
- * 副作用は無く、純粋なマーカーとして機能する。
+ * 実装は SB の {@code EverlastingUpgradeItem} と同じ構造に統一:
+ *   - Wrapper は inner static class
+ *   - 上限設定は {@link Config#SERVER}.maxUpgradesPerStorage を直接利用
+ *     (SB が用意してる sophisticated config 経由の上限管理に乗っかる)
+ *   - getUpgradeConflicts は空 = 競合なし
  */
-public class VoltaicChargerUpgradeItem extends UpgradeItemBase<VoltaicChargerUpgradeWrapper> {
+public class VoltaicChargerUpgradeItem extends UpgradeItemBase<VoltaicChargerUpgradeItem.Wrapper> {
 
-    /** 1 ストレージあたりの最大装着枚数 */
-    public static final int MAX_PER_STORAGE = 3;
-
-    private static final IUpgradeCountLimitConfig LIMIT_CONFIG = new IUpgradeCountLimitConfig() {
-        @Override
-        public int getMaxUpgradesPerStorage(String storageType, ResourceLocation upgrade) {
-            return MAX_PER_STORAGE;
-        }
-        @Override
-        public int getMaxUpgradesInGroupPerStorage(String storageType, UpgradeGroup group) {
-            return Integer.MAX_VALUE;
-        }
-    };
-
-    /** SB が wrapper を作る factory として登録する UpgradeType */
-    public static final UpgradeType<VoltaicChargerUpgradeWrapper> TYPE =
-        new UpgradeType<>(VoltaicChargerUpgradeWrapper::new);
+    public static final UpgradeType<Wrapper> TYPE = new UpgradeType<>(Wrapper::new);
 
     public VoltaicChargerUpgradeItem() {
-        super(LIMIT_CONFIG);
+        super(Config.SERVER.maxUpgradesPerStorage);
+        backpackarsenal.BackpackArsenalMod.LOGGER.info(
+            "[backpack_arsenal] [DIAG-V2] VoltaicChargerUpgradeItem ctor: " +
+            "instanceof IUpgradeItem={}, Config.SERVER={}, maxUpgradesPerStorage={}",
+            (this instanceof net.p3pp3rf1y.sophisticatedcore.upgrades.IUpgradeItem),
+            Config.SERVER,
+            Config.SERVER == null ? "null" : Config.SERVER.maxUpgradesPerStorage);
     }
 
     @Override
-    public UpgradeType<VoltaicChargerUpgradeWrapper> getType() {
+    public UpgradeType<Wrapper> getType() {
+        // getType は SB が wrapper を作る瞬間に呼ばれる。 ここに log があれば SB が
+        // 我々の item を upgrade として認識してインサート処理に入った証拠。
+        if (!getTypeLogged) {
+            getTypeLogged = true;
+            backpackarsenal.BackpackArsenalMod.LOGGER.info(
+                "[backpack_arsenal] [DIAG-V2] VoltaicChargerUpgradeItem.getType() invoked (first time)");
+        }
         return TYPE;
     }
+    private static boolean getTypeLogged = false;
 
     @Override
-    public List<IUpgradeItem.UpgradeConflictDefinition> getUpgradeConflicts() {
+    public List<UpgradeConflictDefinition> getUpgradeConflicts() {
         return List.of();
+    }
+
+    public static class Wrapper extends UpgradeWrapperBase<Wrapper, VoltaicChargerUpgradeItem> {
+        public Wrapper(IStorageWrapper backpackWrapper, ItemStack upgrade, Consumer<ItemStack> upgradeSaveHandler) {
+            super(backpackWrapper, upgrade, upgradeSaveHandler);
+            // Wrapper の ctor が呼ばれる = SB が UpgradeType.create() を呼んで wrapper を
+            // 作った = slot に正常に挿入された。 ここに log があれば成功確定。
+            backpackarsenal.BackpackArsenalMod.LOGGER.info(
+                "[backpack_arsenal] [DIAG-V2] VoltaicChargerUpgradeItem.Wrapper ctor: " +
+                "upgrade stack item class={}", upgrade.getItem().getClass().getSimpleName());
+        }
     }
 }

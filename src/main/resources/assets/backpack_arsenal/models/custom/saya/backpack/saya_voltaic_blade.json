@@ -662,8 +662,8 @@
 			"translation": [-4.25, -6.75, 2]
 		},
 		"the_four_primitives_and_weapons:back": {
-			"rotation": [90, -135, 90],
-			"translation": [-5.25, -6.75, 4.25],
+			"rotation": [90, -165, 90],
+			"translation": [-7.25, 3.25, 4.25],
 			"scale": [1.45, 1.45, 1.45]
 		},
 		"the_four_primitives_and_weapons:belt": {

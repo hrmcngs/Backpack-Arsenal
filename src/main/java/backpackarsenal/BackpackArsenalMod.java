@@ -35,6 +35,29 @@ public class BackpackArsenalMod {
     public static final String MODID = "backpack_arsenal";
     public static final Logger LOGGER = LogManager.getLogger(BackpackArsenalMod.class);
 
+    /**
+     * 設置ブロック描画専用の display context。
+     *
+     * Forge の BlockModel deserializer は JSON の display section を読む時、
+     * 各 key (例: "backpack_arsenal:placed") に対応する {@link net.minecraft.world.item.ItemDisplayContext}
+     * が既に登録されてないと「未知の key」として無視する。 client setup 経由だと
+     * 登録タイミングが model bake に間に合わない場合があるため、 mod class の
+     * static initializer (= mod 構築の最早期) で create() を呼ぶ。
+     *
+     * fallback は {@link net.minecraft.world.item.ItemDisplayContext#FIXED} で、 JSON 側に
+     * display.backpack_arsenal:placed が無い時に display.fixed が使われる。
+     *
+     * ⚠ AIOOBE 対策: カスタム context を増やすと vanilla {@code ItemTransforms.getTransform}
+     * の synthetic switch table を超えて crash する。 本 MOD では PLACED のみ
+     * カスタム化し、他の独自 context (CHESTPLATE 等) は vanilla FIXED に統一済み。
+     */
+    public static final net.minecraft.world.item.ItemDisplayContext PLACED_CONTEXT =
+        net.minecraft.world.item.ItemDisplayContext.create(
+            "BACKPACK_ARSENAL_PLACED",
+            new net.minecraft.resources.ResourceLocation(MODID, "placed"),
+            net.minecraft.world.item.ItemDisplayContext.FIXED
+        );
+
     public BackpackArsenalMod() {
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
 
@@ -168,11 +191,11 @@ public class BackpackArsenalMod {
                     net.p3pp3rf1y.sophisticatedbackpacks.init.ModBlocks.BACKPACK_TILE_TYPE.get(),
                     backpackarsenal.client.render.ArsenalBackpackBlockEntityRenderer::new
                 );
-                // PLACED_CONTEXT を強制 class 初期化 (ItemDisplayContext.create が一度
-                // しか呼ばれていないことを保証 + 早期登録)。
+                // PLACED_CONTEXT は本クラスの static initializer で既に登録済みなので、
+                // ここでは確認ログだけ出す。 (mod 構築時に登録 → model bake の前に
+                // ItemDisplayContext.byName("backpack_arsenal:placed") が引けるようになる)
                 LOGGER.info("[{}] Registered ArsenalBackpackBlockEntityRenderer (PLACED context: {})",
-                    MODID,
-                    backpackarsenal.client.render.ArsenalBackpackBlockEntityRenderer.PLACED_CONTEXT);
+                    MODID, PLACED_CONTEXT.getSerializedName());
             } catch (Throwable t) {
                 LOGGER.error("[{}] Failed to register custom block entity renderer: {}",
                     MODID, t.toString());

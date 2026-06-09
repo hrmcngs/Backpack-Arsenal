@@ -66,7 +66,12 @@ public class BackpackChargingHandler {
 
     /**
      * backpack 内の有効な VoltaicChargerUpgrade 枚数。
-     * SB の IBackpackWrapper.getUpgradeHandler().getSlotWrappers() を走査。
+     *
+     * SB の {@code IUpgradeHandler.getTypeWrappers(UpgradeType)} を使う。 これは内部で
+     * {@code typeWrappers Map<UpgradeType, List<IUpgradeWrapper>>} を引くので、
+     * instanceof で全 slot を走査するより速くて確実。
+     *
+     * 「機能していない」ケースの切り分けに、 type 別の wrapper 種類も診断ログに出す。
      */
     private static int countVoltaicChargerUpgrades(ItemStack backpackStack) {
         var capOpt = backpackStack.getCapability(
@@ -76,33 +81,39 @@ public class BackpackChargingHandler {
             return 0;
         }
         int[] count = {0};
-        int[] totalSeen = {0};
-        StringBuilder typeNames = new StringBuilder();
         capOpt.ifPresent(wrapper -> {
             try {
-                wrapper.getUpgradeHandler().getSlotWrappers().values().forEach(w -> {
-                    totalSeen[0]++;
-                    if (w == null) {
-                        typeNames.append("null,");
-                        return;
-                    }
-                    typeNames.append(w.getClass().getSimpleName())
-                        .append(w.isEnabled() ? "" : "(disabled)")
-                        .append(',');
-                    if (!w.isEnabled()) return;
-                    if (w instanceof backpackarsenal.upgrade.VoltaicChargerUpgradeWrapper) {
-                        count[0]++;
-                    }
-                });
+                var upgradeHandler = wrapper.getUpgradeHandler();
+
+                // 主経路: getTypeWrappers で TYPE から直接引く
+                java.util.List<backpackarsenal.upgrade.VoltaicChargerUpgradeItem.Wrapper> matched =
+                    upgradeHandler.getTypeWrappers(
+                        backpackarsenal.upgrade.VoltaicChargerUpgradeItem.TYPE);
+                int enabled = 0;
+                for (var w : matched) {
+                    if (w != null && w.isEnabled()) enabled++;
+                }
+                count[0] = enabled;
+
+                // 診断: getSlotWrappers の全 entry も併せてダンプして、 SB が我々の
+                // item を VoltaicChargerUpgradeItem.Wrapper として認識してるかを確認可能に。
+                var allSlots = upgradeHandler.getSlotWrappers();
+                if (!allSlots.isEmpty()) {
+                    StringBuilder sb = new StringBuilder();
+                    allSlots.forEach((slot, w) -> {
+                        sb.append(slot).append("=");
+                        sb.append(w == null ? "null"
+                            : w.getClass().getSimpleName() + (w.isEnabled() ? "" : "(disabled)"));
+                        sb.append(',');
+                    });
+                    maybeLog("upgradeHandler slots={} typeWrappers(VoltaicCharger)={} enabled={}",
+                        sb.toString(), matched.size(), enabled);
+                }
             } catch (Throwable t) {
                 BackpackArsenalMod.LOGGER.warn(
                     "[backpack_arsenal] countVoltaicChargerUpgrades threw: {}", t.toString());
             }
         });
-        if (totalSeen[0] > 0) {
-            maybeLog("upgrades seen={} match={} types=[{}]",
-                totalSeen[0], count[0], typeNames);
-        }
         return count[0];
     }
 

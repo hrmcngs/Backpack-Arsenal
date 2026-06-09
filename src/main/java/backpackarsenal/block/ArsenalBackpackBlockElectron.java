@@ -91,18 +91,33 @@ public class ArsenalBackpackBlockElectron extends BackpackBlock {
 
     // ─── shape construction ─────────────────────────────────────────
 
+    /**
+     * BER は {@code mulPose(Axis.YN, facing.toYRot())} で回転する:
+     *   SOUTH (toYRot=  0): 回転なし
+     *   NORTH (toYRot=180): 180°回転
+     *   EAST  (toYRot=270): 90° CCW (上から見て反時計回り)
+     *   WEST  (toYRot= 90): 90° CW
+     *
+     * {@link #loadShapeFromModel()} が返すのはモデル native の向き (+Z=front)。
+     * これは BER の SOUTH facing (回転なし) と同じ姿勢なので、 そのまま SOUTH に
+     * 割り当て、 他 facing は対応する角度で {@link #rotateYAroundBlockCenter} 経由
+     * で回す。
+     */
     private static Map<Direction, VoxelShape> buildShapes() {
         Map<Direction, VoxelShape> map = new EnumMap<>(Direction.class);
-        VoxelShape north = loadShapeFromModel();
-        map.put(Direction.NORTH, north);
-        map.put(Direction.EAST,  rotateYAroundBlockCenter(north, Direction.EAST));
-        map.put(Direction.SOUTH, rotateYAroundBlockCenter(north, Direction.SOUTH));
-        map.put(Direction.WEST,  rotateYAroundBlockCenter(north, Direction.WEST));
+        VoxelShape base = loadShapeFromModel();
+        map.put(Direction.SOUTH, base);
+        map.put(Direction.NORTH, rotateYAroundBlockCenter(base, Direction.NORTH));
+        map.put(Direction.EAST,  rotateYAroundBlockCenter(base, Direction.EAST));
+        map.put(Direction.WEST,  rotateYAroundBlockCenter(base, Direction.WEST));
         return map;
     }
 
     /** モデル JSON の elements 配列を読んで {@link VoxelShape} を構築。
-     *  rotation がある element は回転後 AABB を採用する。 */
+     *  rotation がある element は回転後 AABB を採用する。
+     *  さらに {@code display.backpack_arsenal:placed} の scale / translation を適用して
+     *  in-game の描画位置 / サイズに合うように補正する (Block.box は voxel pixel 0..16 を
+     *  受けるので display 値もそのまま pixel 単位で扱える)。 */
     private static VoxelShape loadShapeFromModel() {
         try (InputStream is = ArsenalBackpackBlockElectron.class.getResourceAsStream(MODEL_RESOURCE)) {
             if (is == null) {
@@ -114,6 +129,30 @@ public class ArsenalBackpackBlockElectron extends BackpackBlock {
                 new InputStreamReader(is, StandardCharsets.UTF_8)).getAsJsonObject();
             if (!model.has("elements")) return Shapes.block();
             JsonArray elements = model.getAsJsonArray("elements");
+
+            // display.backpack_arsenal:placed の transform を取得 (無ければ fallback で fixed)。
+            // BER がこれで描画するので、 collision も同じ変換を入れないと当たり判定がズレる。
+            double[] placedTranslation = {0, 0, 0};
+            double[] placedScale = {1, 1, 1};
+            if (model.has("display")) {
+                JsonObject display = model.getAsJsonObject("display");
+                JsonObject placed = null;
+                if (display.has("backpack_arsenal:placed")) {
+                    placed = display.getAsJsonObject("backpack_arsenal:placed");
+                } else if (display.has("fixed")) {
+                    placed = display.getAsJsonObject("fixed");
+                }
+                if (placed != null) {
+                    if (placed.has("translation")) {
+                        double[] t = parseVec3(placed.getAsJsonArray("translation"));
+                        if (t != null) placedTranslation = t;
+                    }
+                    if (placed.has("scale")) {
+                        double[] s = parseVec3(placed.getAsJsonArray("scale"));
+                        if (s != null) placedScale = s;
+                    }
+                }
+            }
 
             VoxelShape shape = Shapes.empty();
             int boxCount = 0, rotated = 0;
@@ -145,6 +184,10 @@ public class ArsenalBackpackBlockElectron extends BackpackBlock {
                     }
                 }
 
+                // display.placed の scale を model 原点 (0,0,0) から適用 → translation を加算。
+                // これで in-game の renderStatic(PLACED) と同じ位置にくる。
+                aabb = applyDisplayTransform(aabb, placedScale, placedTranslation);
+
                 if (aabb[3] - aabb[0] < 0.0001
                     || aabb[4] - aabb[1] < 0.0001
                     || aabb[5] - aabb[2] < 0.0001) continue;
@@ -154,13 +197,49 @@ public class ArsenalBackpackBlockElectron extends BackpackBlock {
             }
             shape = shape.optimize();
             BackpackArsenalMod.LOGGER.info(
-                "[backpack_arsenal] built collision shape from {} elements ({} rotated)", boxCount, rotated);
+                "[backpack_arsenal] built collision shape from {} elements ({} rotated) " +
+                "with display.placed scale={},{},{} translation={},{},{}",
+                boxCount, rotated,
+                placedScale[0], placedScale[1], placedScale[2],
+                placedTranslation[0], placedTranslation[1], placedTranslation[2]);
             return shape.isEmpty() ? Shapes.block() : shape;
         } catch (Throwable t) {
             BackpackArsenalMod.LOGGER.error(
                 "[backpack_arsenal] failed to build shape from model — using full block", t);
             return Shapes.block();
         }
+    }
+
+    /**
+     * AABB を in-game の placed block 描画と同じ位置・サイズに変換する。
+     *
+     * 描画のトランスフォーム順 (voxel 単位、 1 voxel = 1/16 block):
+     *   1. BER  : translate(+8, 0, +8)         — block 中央 (横軸) に移動
+     *   2. BER  : mulPose(YN, facing.toYRot)  — facing 回転 (本関数の後段 rotateYAround… で処理)
+     *   3. Display: translate(dx, dy, dz)      — JSON の display.placed.translation
+     *   4. Display: scale(sx, sy, sz)          — JSON の display.placed.scale
+     *   5. ItemRenderer: translate(-8sx, -8sy, -8sz)  — 内部の "centering" 変換、 scale 倍された値
+     *
+     * 結果として model voxel V がワールドに配置される位置:
+     *   T + V * scale
+     *   T_x = 8 + dx - 8sx  (BER + display + scaled ItemRenderer)
+     *   T_y = 0 + dy - 8sy  (BER の Y translate は無し)
+     *   T_z = 8 + dz - 8sz
+     *
+     * よって AABB の min/max もそれぞれ {@code v * scale + T} で得られる。
+     */
+    private static double[] applyDisplayTransform(double[] aabb, double[] scale, double[] translation) {
+        double tx = 8.0 - 8.0 * scale[0] + translation[0];
+        double ty =        - 8.0 * scale[1] + translation[1];
+        double tz = 8.0 - 8.0 * scale[2] + translation[2];
+        return new double[] {
+            aabb[0] * scale[0] + tx,
+            aabb[1] * scale[1] + ty,
+            aabb[2] * scale[2] + tz,
+            aabb[3] * scale[0] + tx,
+            aabb[4] * scale[1] + ty,
+            aabb[5] * scale[2] + tz,
+        };
     }
 
     /** 軸 (x/y/z) 周りに angle (度) で box を回転し、回転後の AABB を返す。 */
@@ -216,8 +295,15 @@ public class ArsenalBackpackBlockElectron extends BackpackBlock {
         }
     }
 
-    /** Y 軸回りに blockstates の y=90/180/270 と同じ回転を box 単位で適用。
-     *  座標系: (x, z) は block center (8, 8) を中心に回転。 */
+    /**
+     * BER の {@code mulPose(Axis.YN, facing.toYRot())} と完全一致する Y 軸回りの
+     * 回転を box 単位で適用する。 座標系: (x, z) は block center (8, 8) を中心に回転。
+     *
+     *   SOUTH (BER 0°)         : 回転なし (case = default)
+     *   NORTH (BER 180°)       : (x, z) → (16-x, 16-z)
+     *   EAST  (BER 90° CCW)    : (x, z) → (z, 16-x)   ← 上から見て反時計回り
+     *   WEST  (BER 90° CW)     : (x, z) → (16-z, x)   ← 上から見て時計回り
+     */
     private static VoxelShape rotateYAroundBlockCenter(VoxelShape src, Direction facing) {
         AtomicReference<VoxelShape> acc = new AtomicReference<>(Shapes.empty());
         // forAllBoxes は 0..1 範囲の座標で box を渡す
@@ -227,19 +313,19 @@ public class ArsenalBackpackBlockElectron extends BackpackBlock {
             double ax2 = x2 * 16, ay2 = y2 * 16, az2 = z2 * 16;
             double nx1, nz1, nx2, nz2;
             switch (facing) {
-                case EAST -> { // 90° CW: (x, z) → (16 - z, x)
-                    nx1 = 16 - az2; nz1 = ax1;
-                    nx2 = 16 - az1; nz2 = ax2;
-                }
-                case SOUTH -> { // 180°: (x, z) → (16 - x, 16 - z)
+                case NORTH -> { // 180°: (x, z) → (16-x, 16-z)
                     nx1 = 16 - ax2; nz1 = 16 - az2;
                     nx2 = 16 - ax1; nz2 = 16 - az1;
                 }
-                case WEST -> { // 270° CW: (x, z) → (z, 16 - x)
+                case EAST -> { // 90° CCW: (x, z) → (z, 16-x)
                     nx1 = az1; nz1 = 16 - ax2;
                     nx2 = az2; nz2 = 16 - ax1;
                 }
-                default -> {
+                case WEST -> { // 90° CW: (x, z) → (16-z, x)
+                    nx1 = 16 - az2; nz1 = ax1;
+                    nx2 = 16 - az1; nz2 = ax2;
+                }
+                default -> { // SOUTH: 回転なし
                     nx1 = ax1; nz1 = az1;
                     nx2 = ax2; nz2 = az2;
                 }
