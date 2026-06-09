@@ -133,13 +133,18 @@ public class BackpackArsenalMod {
             // renderer は SB の BackpackLayerRenderer.renderBackpack を呼び出すので、
             // 我々の JSON BakedModel が WORN context で描画される。
             //
+            // ARSENAL_BACKPACK_ELECTRON は ArsenalBackpackCurioRenderer を使う。これは
+            // SB の renderer と同じく BackpackLayerRenderer.renderBackpack を呼んだあと、
+            // backpack 内に voltaic_blade があれば saya モデルを上から重ね描画する。
+            // BASIC_BACKPACK は鞘オーバーレイ不要なので SB の renderer をそのまま使う。
+            //
             // try-catch でラップ: Curios API のバージョン不整合や SB 内部 class へのアクセス
             // 失敗が起きても MenuScreens 登録 (上記) はもう完了済みなので、右クリック GUI は
             // 影響を受けない。
             try {
                 top.theillusivec4.curios.api.client.CuriosRendererRegistry.register(
                     backpackarsenal.init.ArsenalItems.ARSENAL_BACKPACK_ELECTRON.get(),
-                    net.p3pp3rf1y.sophisticatedbackpacks.compat.curios.BackpackCurioRenderer::new
+                    backpackarsenal.client.render.ArsenalBackpackCurioRenderer::new
                 );
                 top.theillusivec4.curios.api.client.CuriosRendererRegistry.register(
                     backpackarsenal.init.ArsenalItems.BASIC_BACKPACK.get(),
@@ -147,6 +152,29 @@ public class BackpackArsenalMod {
                 );
             } catch (Throwable t) {
                 LOGGER.error("[{}] Failed to register Curios renderer for backpacks: {}",
+                    MODID, t.toString());
+            }
+
+            // 設置ブロック描画を独自 BER に差し替える。
+            // SB の BackpackBlockEntityRenderer は ItemDisplayContext.FIXED 固定で
+            // 描画してしまうため、 BA だけ別 context (backpack_arsenal:placed) を
+            // 使わせたい場合は同じ BlockEntityType に対して我々の BER を上書き登録
+            // する必要がある。 BlockEntityRenderers.register は内部で map に
+            // last-write-wins で put するだけなので、ここで SB の後に呼ぶことで
+            // 我々の BER が採用される。 SB バニラの backpack BE は ArsenalBackpack-
+            // BlockEntityRenderer の中で SB BER に再委譲しているので壊さない。
+            try {
+                net.minecraft.client.renderer.blockentity.BlockEntityRenderers.register(
+                    net.p3pp3rf1y.sophisticatedbackpacks.init.ModBlocks.BACKPACK_TILE_TYPE.get(),
+                    backpackarsenal.client.render.ArsenalBackpackBlockEntityRenderer::new
+                );
+                // PLACED_CONTEXT を強制 class 初期化 (ItemDisplayContext.create が一度
+                // しか呼ばれていないことを保証 + 早期登録)。
+                LOGGER.info("[{}] Registered ArsenalBackpackBlockEntityRenderer (PLACED context: {})",
+                    MODID,
+                    backpackarsenal.client.render.ArsenalBackpackBlockEntityRenderer.PLACED_CONTEXT);
+            } catch (Throwable t) {
+                LOGGER.error("[{}] Failed to register custom block entity renderer: {}",
                     MODID, t.toString());
             }
         });

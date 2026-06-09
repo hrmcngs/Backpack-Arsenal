@@ -3,49 +3,10 @@
 	"credit": "Merged from SophisticatedBackpacks backpack_base + straps + pouches (1.20.x) — editable in Blockbench. Origin upstream: https://github.com/P3pp3rF1y/SophisticatedBackpacks",
 	"texture_size": [32, 32],
 	"textures": {
-		"0": "backpack_arsenal:item/voltaic_blade",
 		"1": "backpack_arsenal:item/saya_voltaic_blade",
 		"particle": "backpack_arsenal:item/voltaic_blade"
 	},
 	"elements": [
-		{
-			"from": [7.475, 3.75, 8.05],
-			"to": [8.525, 6.75, 8.6],
-			"rotation": {"angle": 0, "axis": "y", "origin": [0, -1.5, 0]},
-			"faces": {
-				"north": {"uv": [2, 2.5, 2.5, 3.5], "texture": "#0"},
-				"east": {"uv": [0.5, 4, 0.75, 5], "texture": "#0"},
-				"south": {"uv": [2.5, 2.5, 3, 3.5], "texture": "#0"},
-				"west": {"uv": [4, 1.5, 4.25, 2.5], "texture": "#0"},
-				"up": {"uv": [2, 4.75, 1.5, 4.5], "texture": "#0"},
-				"down": {"uv": [5, 1.5, 4.5, 1.75], "texture": "#0"}
-			}
-		},
-		{
-			"from": [7.6, 0.5, 7.65],
-			"to": [8.4, 8, 8.45],
-			"faces": {
-				"north": {"uv": [1, 0, 1.375, 2.125], "texture": "#0"},
-				"east": {"uv": [1.5, 0, 1.875, 2.125], "texture": "#0"},
-				"south": {"uv": [2, 0, 2.375, 2.125], "texture": "#0"},
-				"west": {"uv": [2.5, 0, 2.875, 2.125], "texture": "#0"},
-				"up": {"uv": [1.375, 4.875, 1, 4.5], "texture": "#0"},
-				"down": {"uv": [4.875, 1, 4.5, 1.375], "texture": "#0"}
-			}
-		},
-		{
-			"from": [7.6, 1.04004, 4.95236],
-			"to": [8.4, 3.04004, 5.50236],
-			"rotation": {"angle": -22.5, "axis": "x", "origin": [8, 9.56194, 8.05866]},
-			"faces": {
-				"north": {"uv": [3.5, 4, 3.875, 4.5], "texture": "#0"},
-				"east": {"uv": [4.5, 3.5, 4.6875, 4], "texture": "#0"},
-				"south": {"uv": [4, 4, 4.375, 4.5], "texture": "#0"},
-				"west": {"uv": [4, 4.5, 4.1875, 5], "texture": "#0"},
-				"up": {"uv": [5.375, 0.6875, 5, 0.5], "texture": "#0"},
-				"down": {"uv": [1.375, 5, 1, 5.1875], "texture": "#0"}
-			}
-		},
 		{
 			"from": [7.5, 7.3, 7.35],
 			"to": [8.5, 8.7, 8.1],
@@ -662,8 +623,8 @@
 			"translation": [-4.25, -6.75, 2]
 		},
 		"the_four_primitives_and_weapons:back": {
-			"rotation": [90, -135, 90],
-			"translation": [-5.25, -6.75, 4.25],
+			"rotation": [90, -165, 90],
+			"translation": [-7.25, 3.25, 4.25],
 			"scale": [1.45, 1.45, 1.45]
 		},
 		"the_four_primitives_and_weapons:belt": {
@@ -678,118 +639,52 @@
 	},
 	"groups": [
 		{
-			"name": "main",
-			"origin": [8, 8, 8],
-			"scope": 0,
-			"color": 0,
-			"children": [
-				{
-					"name": "group",
-					"origin": [8, 8, 8],
-					"scope": 0,
-					"color": 0,
-					"children": [
-						{
-							"name": "group",
-							"origin": [4.2, 6.45, 12.8],
-							"scope": 0,
-							"color": 0,
-							"children": []
-						},
-						{
-							"name": "group",
-							"origin": [3.9, 7.4, 12.5],
-							"scope": 0,
-							"color": 0,
-							"children": [
-								{
-									"name": "group",
-									"origin": [8, 8, 8],
-									"scope": 0,
-									"color": 0,
-									"children": []
-								},
-								{
-									"name": "group",
-									"origin": [3.9, 7.4, 12.5],
-									"scope": 0,
-									"color": 0,
-									"children": []
-								}
-							]
-						}
-					]
-				},
-				{
-					"name": "tuka",
-					"origin": [8, 8, 8],
-					"scope": 0,
-					"color": 0,
-					"children": [
-						{
-							"name": "gurippu",
-							"origin": [3.9, 7.4, 12.5],
-							"scope": 0,
-							"color": 0,
-							"children": [0]
-						},
-						1,
-						2
-					]
-				},
-				{
-					"name": "group",
-					"origin": [3.9, 7.4, 12.5],
-					"scope": 0,
-					"color": 0,
-					"children": []
-				}
-			]
-		},
-		{
 			"name": "saya",
 			"origin": [8, 8, 8],
 			"scope": 0,
 			"color": 0,
 			"children": [
+				0,
+				1,
+				2,
 				3,
 				4,
 				5,
 				6,
 				7,
-				8,
-				9,
-				10,
 				{
 					"name": "group",
 					"origin": [6.75, 6.12659, 11.52781],
 					"scope": 0,
 					"color": 0,
 					"children": [
+						8,
+						9,
+						10,
 						11,
 						12,
 						13,
 						14,
 						15,
-						16,
-						17,
-						18,
 						{
 							"name": "group",
 							"origin": [7.65, 6.37408, 11.06819],
 							"scope": 0,
 							"color": 0,
-							"children": [19, 20, 21, 22]
+							"children": [16, 17, 18, 19]
 						},
 						{
 							"name": "group",
 							"origin": [7.65, 6.37408, 11.06819],
 							"scope": 0,
 							"color": 0,
-							"children": [23, 24, 25, 26]
+							"children": [20, 21, 22, 23]
 						}
 					]
 				},
+				24,
+				25,
+				26,
 				27,
 				28,
 				29,
@@ -806,10 +701,7 @@
 				40,
 				41,
 				42,
-				43,
-				44,
-				45,
-				46
+				43
 			]
 		}
 	]

@@ -63,14 +63,6 @@ authors="hiromichi-ngs"
     ordering="AFTER"
     side="BOTH"
 
-# GeckoLib（必須）— 本体MOD のアニメーション基盤
-[[dependencies.backpack_arsenal]]
-    modId="geckolib"
-    mandatory=true
-    versionRange="[0,)"
-    ordering="AFTER"
-    side="BOTH"
-
 # JEI（任意）— レシピUI 連携
 [[dependencies.backpack_arsenal]]
     modId="jei"

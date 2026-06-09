@@ -125,7 +125,6 @@ if (mawSourceJarDir.exists()) {
 // 前提MOD バージョン
 // =====================================================================
 def curios_version    = '5.10.0+1.20.1'
-def geckolib_version  = '4.8.3'
 def jei_version       = '15.20.0.129'
 
 // Sophisticated Backpacks (CurseForge project id: 422301)
@@ -169,7 +168,6 @@ repositories {
         metadataSources { artifact() }
     }
     maven { url 'https://maven.theillusivec4.top/' }
-    maven { url 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/' }
     maven {
         name = 'Progwml6 maven'
         url  = 'https://dvs1.progwml6.com/files/maven/'
@@ -208,9 +206,6 @@ dependencies {
     // Curios (任意) — 本体MOD連携用
     compileOnly fg.deobf("top.theillusivec4.curios:curios-forge:${curios_version}:api")
     runtimeOnly fg.deobf("top.theillusivec4.curios:curios-forge:${curios_version}")
-
-    // GeckoLib (任意)
-    implementation fg.deobf("software.bernie.geckolib:geckolib-forge-1.20.1:${geckolib_version}")
 
     // JEI (任意)
     compileOnly fg.deobf("mezz.jei:jei-1.20.1-common-api:${jei_version}")

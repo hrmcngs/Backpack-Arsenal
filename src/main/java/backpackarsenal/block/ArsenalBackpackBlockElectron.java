@@ -59,6 +59,24 @@ public class ArsenalBackpackBlockElectron extends BackpackBlock {
         return ArsenalItems.ARSENAL_BACKPACK_ELECTRON.get();
     }
 
+    /**
+     * placed block は {@link backpackarsenal.client.render.ArsenalBackpackBlockEntityRenderer}
+     * のみが描画する (= display.fixed scale 0.6 で縮小されたアイテムモデル)。
+     *
+     * vanilla の block model 描画パスは無効にしないと、 block 用 JSON
+     * ({@code models/block/arsenal_backpack_electron.json}) が item モデルから parent
+     * してフルサイズの素ジオメトリ (0..16 voxel = 1 block) を描いてしまい、 BER の
+     * 縮小描画と二重に表示される。 {@link RenderShape#INVISIBLE} を返して block model
+     * 描画を完全にスキップし、 BER 側 (= display.fixed 適用済み) だけ見せる。
+     *
+     * 当たり判定は {@link #getShape} / {@link #getCollisionShape} の VoxelShape が別途
+     * 担当するので INVISIBLE でも掘ることはできる。
+     */
+    @Override
+    public net.minecraft.world.level.block.RenderShape getRenderShape(BlockState state) {
+        return net.minecraft.world.level.block.RenderShape.INVISIBLE;
+    }
+
     @Override
     public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext ctx) {
         Direction facing = state.getValue(FACING);

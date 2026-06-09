@@ -8,6 +8,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.SimpleMenuProvider;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -65,6 +66,30 @@ public class ArsenalBackpackItem extends BackpackItem {
         );
     }
 
+    // ─── バニラチェスト防具スロット装備サポート ───────────────────────────
+    //
+    // ArsenalBackpack を E キーのインベントリ画面のチェストスロットに置けるようにする。
+    // 装備されると {@link backpackarsenal.client.render.ChestBackpackLayer} が
+    // body の前方に backpack 本体 + saya を描画する。
+    //
+    // 注意:
+    //   - 元は SB の BackpackItem (= ArmorItem ではない) なので、 vanilla の
+    //     ArmorItem ベースの装備判定 (Inventory.getEquipmentSlot 等) はそのままだと
+    //     チェストへ shift-click が通らない。 Forge の hook 2つを override で解決:
+    //       canEquip      : Mob の自動装備可否 / Inventory.getEquipmentSlot
+    //       getEquipmentSlot : Curios 等の slot 判定で参照される
+    //   - Curios "back" 装着とは独立。 両装着しても落ちないが saya が二重描画される。
+
+    @Override
+    public boolean canEquip(ItemStack stack, EquipmentSlot armorType, net.minecraft.world.entity.Entity entity) {
+        return armorType == EquipmentSlot.CHEST;
+    }
+
+    @Override
+    public EquipmentSlot getEquipmentSlot(ItemStack stack) {
+        return EquipmentSlot.CHEST;
+    }
+
     // initializeClient() は SB 親に委ねる。
     // SB の BackpackItemStackRenderer (BEWLR) は内部で ItemRenderer.getModel(stack) を呼ぶので、
     // 我々の JSON BakedModel (assets/backpack_arsenal/models/item/arsenal_backpack.json) を
@@ -90,8 +115,29 @@ public class ArsenalBackpackItem extends BackpackItem {
         }
     }
 
-    /** バックパック内の通常スロットに入っている voltaic_blade の本数を数える。 */
-    private static int countVoltaicInRegularSlots(ItemStack backpack) {
+    /** NBT key — server side で本数を書き込み、 client は NBT 経由でこの数を読む。
+     *  SB は ItemStack 内 NBT を全て client 同期するので、これだけで client 描画系が動く。
+     *  capability 経由の inventory 走査は client 側で空 handler を返すケースがあるため
+     *  rendering からは必ず NBT を見る。 */
+    private static final String NBT_VOLTAIC_COUNT_TAG = "BackpackArsenalVoltaicCount";
+
+    /**
+     * バックパック内の通常スロットに入っている voltaic_blade の本数を数える。
+     *
+     * 優先順位:
+     *   1. NBT に同期済み count があれば即それを返す (client side で使用)
+     *   2. capability 経由でライブ scan (server side、 NBT 未書き込み時のフォールバック)
+     */
+    public static int countVoltaicInRegularSlots(ItemStack backpack) {
+        var nbt = backpack.getTag();
+        if (nbt != null && nbt.contains(NBT_VOLTAIC_COUNT_TAG)) {
+            return nbt.getInt(NBT_VOLTAIC_COUNT_TAG);
+        }
+        return liveScanVoltaicCount(backpack);
+    }
+
+    /** capability から実際にスロットを走査して数を返す。 server side のみ正確に動く。 */
+    private static int liveScanVoltaicCount(ItemStack backpack) {
         IItemHandler handler = backpack.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
         if (handler == null) return 0;
         int count = 0;
@@ -101,6 +147,23 @@ public class ArsenalBackpackItem extends BackpackItem {
             }
         }
         return count;
+    }
+
+    /**
+     * server-side で voltaic_blade 本数を scan し、 ItemStack NBT に同期する。
+     * tick handler ({@code BackpackChargingHandler}) から定期的に呼ばれる想定。
+     *
+     * 同じ count が既に書かれていれば書き込まず、NBT 変更通知 → 無駄な client 同期を抑制する。
+     */
+    public static void syncVoltaicCountToNbt(ItemStack backpack) {
+        if (backpack.isEmpty()) return;
+        int newCount = liveScanVoltaicCount(backpack);
+        var nbt = backpack.getTag();
+        int oldCount = (nbt != null && nbt.contains(NBT_VOLTAIC_COUNT_TAG))
+            ? nbt.getInt(NBT_VOLTAIC_COUNT_TAG) : -1;
+        if (oldCount != newCount) {
+            backpack.getOrCreateTag().putInt(NBT_VOLTAIC_COUNT_TAG, newCount);
+        }
     }
 
     /**

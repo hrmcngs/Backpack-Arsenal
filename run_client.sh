@@ -68,6 +68,26 @@ cp -f "$BUILT_JAR" "$MAW_JAR"
 echo "    ビルド完了: $BUILT_JAR"
 echo "    コピー先  : $MAW_JAR"
 
+# --- ForgeGradle deobf cache を invalidate --------------------------------
+# fg.deobf("local:...") は固定 version (1.20.1-test) を引いているため、
+# ソース jar の hash が変わっても deobf 結果のキャッシュが古いまま使われて
+# 実行中のクライアントに本体MOD の変更が反映されないことがある。
+# 該当 cache ディレクトリを丸ごと消して次のビルドで deobf を強制やり直しさせる。
+DEOBF_CACHE_ROOTS=(
+    "$HOME/.gradle/caches/forge_gradle/deobf_dependencies/local/the_four_primitives_and_weapons"
+    "$HOME/.gradle/caches/forge_gradle/mod_remap_repo/local/the_four_primitives_and_weapons"
+)
+PURGED=0
+for root in "${DEOBF_CACHE_ROOTS[@]}"; do
+    if [ -d "$root" ]; then
+        # 同一 artifact の全 mapping variant を削除 (= 1.20.1-test_mapped_official_1.20.1 等)
+        find "$root" -mindepth 1 -maxdepth 1 -name '1.20.1-test*' -exec rm -rf {} + 2>/dev/null && PURGED=1
+    fi
+done
+if [ "$PURGED" = 1 ]; then
+    echo "    deobf cache を invalidate (本体MOD の変更を確実に反映)"
+fi
+
 # --- addon runClient ------------------------------------------------------
 if [ ! -f "$MAW_JAR" ]; then
     echo "[error] 本体MOD jar の配置に失敗: $MAW_JAR" >&2
