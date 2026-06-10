@@ -186,56 +186,120 @@ jobs:
   #   5. Repository variable に CF_GAME_VERSION_IDS を追加
   #      (CurseForge 1.20.1 + Forge の数値 ID をカンマ区切りで、例: "9990,7498")
   # ───────────────────────────────────────────────────────────────────
+  # ───────────────────────────────────────────────────────────────────
+  # 各 step を分割することで GitHub UI に ✅ チェックマーク と所要時間が出る
+  # → "1/5 …", "2/5 …" 形式で 進捗 % が視覚的にわかる。
+  # $GITHUB_STEP_SUMMARY には Job ページ下部の Summary に進捗バー表示も追加。
+  # ───────────────────────────────────────────────────────────────────
   curseforge_upload:
     needs: [resolve, build]
     if: needs.resolve.outputs.should_upload == 'true'
     runs-on: ubuntu-latest
     environment: curseforge
+    env:
+      CF_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
+      CF_PROJECT_ID: ${{ secrets.CURSEFORGE_PROJECT_ID }}
+      CF_GAME_VERSION_IDS: ${{ vars.CF_GAME_VERSION_IDS }}
+      RELEASE_TYPE: ${{ needs.resolve.outputs.release_type }}
+      MOD_VERSION: ${{ needs.build.outputs.mod_version }}
     steps:
-      - name: Download built jar
+      - name: '1/5 ▰▱▱▱▱ (20%)  Validate secrets'
+        run: |
+          {
+            echo "## CurseForge upload progress"
+            echo ""
+            echo "| Step | Status |"
+            echo "|---|---|"
+            echo "| 1/5 Validate secrets | ⏳ running |"
+          } > "$GITHUB_STEP_SUMMARY"
+          if [ -z "$CF_TOKEN" ] || [ -z "$CF_PROJECT_ID" ] || [ -z "$CF_GAME_VERSION_IDS" ]; then
+            echo "::error::Missing required secret/variable: CURSEFORGE_TOKEN / CURSEFORGE_PROJECT_ID / CF_GAME_VERSION_IDS"
+            sed -i 's|1/5 Validate secrets | ⏳ running|1/5 Validate secrets | ❌ missing|' "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "::notice::▰▱▱▱▱ 20%  secrets OK ($(echo $CF_TOKEN | wc -c) char token, project $CF_PROJECT_ID)"
+          sed -i 's|1/5 Validate secrets | ⏳ running|1/5 Validate secrets | ✅ done|' "$GITHUB_STEP_SUMMARY"
+
+      - name: '2/5 ▰▰▱▱▱ (40%)  Download built jar'
         uses: actions/download-artifact@v8
         with:
           name: backpack-arsenal-jar
           path: dist
 
-      - name: Upload to CurseForge
-        env:
-          CF_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
-          CF_PROJECT_ID: ${{ secrets.CURSEFORGE_PROJECT_ID }}
-          CF_GAME_VERSION_IDS: ${{ vars.CF_GAME_VERSION_IDS }}
-          RELEASE_TYPE: ${{ needs.resolve.outputs.release_type }}
-          MOD_VERSION: ${{ needs.build.outputs.mod_version }}
+      - name: '2/5 ▰▰▱▱▱ (40%)  Verify jar artifact'
         run: |
-          set -e
-          if [ -z "$CF_TOKEN" ] || [ -z "$CF_PROJECT_ID" ] || [ -z "$CF_GAME_VERSION_IDS" ]; then
-            echo "::error::Missing required secret/variable: CURSEFORGE_TOKEN / CURSEFORGE_PROJECT_ID / CF_GAME_VERSION_IDS"
+          echo "| 2/5 Download jar | ⏳ verifying |" >> "$GITHUB_STEP_SUMMARY"
+          JAR=$(ls dist/*.jar | grep -v sources | grep -v javadoc | head -1)
+          if [ ! -f "$JAR" ]; then
+            echo "::error::No jar found in dist/"
+            sed -i 's|2/5 Download jar | ⏳ verifying|2/5 Download jar | ❌ missing|' "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
-          JAR=$(ls dist/*.jar | grep -v sources | grep -v javadoc | head -1)
+          SIZE=$(du -h "$JAR" | cut -f1)
+          echo "JAR_PATH=$JAR" >> "$GITHUB_ENV"
+          echo "JAR_SIZE=$SIZE" >> "$GITHUB_ENV"
+          echo "::notice::▰▰▱▱▱ 40%  jar=$(basename $JAR) size=$SIZE"
+          sed -i "s|2/5 Download jar | ⏳ verifying|2/5 Download jar ($SIZE) | ✅ done|" "$GITHUB_STEP_SUMMARY"
+
+      - name: '3/5 ▰▰▰▱▱ (60%)  Prepare metadata'
+        run: |
+          echo "| 3/5 Prepare metadata | ⏳ running |" >> "$GITHUB_STEP_SUMMARY"
           GAME_VER_JSON=$(echo "[$CF_GAME_VERSION_IDS]")
-
-          # changelog は最新コミットメッセージ
           CHANGELOG=$(git log -1 --pretty=%B 2>/dev/null || echo "Automated release: $MOD_VERSION")
-
           METADATA=$(jq -nc \
             --arg cl "$CHANGELOG" \
             --arg rt "$RELEASE_TYPE" \
             --argjson gv "$GAME_VER_JSON" \
             '{ changelog: $cl, changelogType: "markdown", releaseType: $rt, gameVersions: $gv }')
+          # 改行/quote を保ったまま次 step に渡すため heredoc に書き出す
+          {
+            echo 'METADATA<<__EOF__'
+            echo "$METADATA"
+            echo '__EOF__'
+          } >> "$GITHUB_ENV"
+          echo "::notice::▰▰▰▱▱ 60%  metadata prepared ($(echo $METADATA | wc -c) bytes)"
+          sed -i 's|3/5 Prepare metadata | ⏳ running|3/5 Prepare metadata | ✅ done|' "$GITHUB_STEP_SUMMARY"
 
-          echo "Uploading $(basename $JAR) as $RELEASE_TYPE..."
-          echo "Metadata: $METADATA"
-
-          HTTP=$(curl -sS -o response.json -w "%{http_code}" \
+      - name: '4/5 ▰▰▰▰▱ (80%)  Upload to CurseForge (curl --progress-bar)'
+        run: |
+          echo "| 4/5 Upload to CurseForge | ⏳ uploading $JAR_SIZE |" >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice::▰▰▰▰▱ 80%  POST $(basename $JAR_PATH) ($JAR_SIZE) as $RELEASE_TYPE ..."
+          # --progress-bar は #### で進捗を吐く (GH log に bytes 推移として記録される)。
+          # 終わったら status コードを HTTP_CODE に書き出す。
+          HTTP=$(curl --progress-bar \
+            -o response.json -w "%{http_code}" \
             -H "X-Api-Token: $CF_TOKEN" \
             -F "metadata=$METADATA" \
-            -F "file=@$JAR" \
+            -F "file=@$JAR_PATH" \
             "https://minecraft.curseforge.com/api/projects/$CF_PROJECT_ID/upload-file")
-
-          echo "HTTP $HTTP"
-          cat response.json
+          echo "HTTP_CODE=$HTTP" >> "$GITHUB_ENV"
+          echo "::notice::upload HTTP $HTTP"
           if [ "$HTTP" != "200" ]; then
+            sed -i "s|4/5 Upload to CurseForge | ⏳ uploading.*|4/5 Upload to CurseForge | ❌ HTTP $HTTP|" "$GITHUB_STEP_SUMMARY"
             echo "::error::CurseForge upload failed with HTTP $HTTP"
+            cat response.json | head -40
             exit 1
           fi
-          echo "::notice::Uploaded $(basename $JAR) ($RELEASE_TYPE) to CurseForge."
+          sed -i "s|4/5 Upload to CurseForge | ⏳ uploading.*|4/5 Upload to CurseForge | ✅ HTTP 200|" "$GITHUB_STEP_SUMMARY"
+
+      - name: '5/5 ▰▰▰▰▰ (100%) Verify CurseForge response'
+        run: |
+          echo "| 5/5 Verify response | ⏳ parsing |" >> "$GITHUB_STEP_SUMMARY"
+          FILE_ID=$(jq -r '.id // empty' response.json 2>/dev/null || true)
+          if [ -z "$FILE_ID" ]; then
+            sed -i 's|5/5 Verify response | ⏳ parsing|5/5 Verify response | ⚠ no file id (HTTP 200 but unknown body)|' "$GITHUB_STEP_SUMMARY"
+            echo "::warning::HTTP 200 but no file id in response — check CurseForge."
+            cat response.json
+          else
+            CF_URL="https://www.curseforge.com/minecraft/mc-mods/arsenal-backpack/files/$FILE_ID"
+            sed -i "s|5/5 Verify response | ⏳ parsing|5/5 Verify response (file #$FILE_ID) | ✅ done|" "$GITHUB_STEP_SUMMARY"
+            {
+              echo ""
+              echo "### ✅ Uploaded"
+              echo ""
+              echo "- File: \`$(basename $JAR_PATH)\` ($JAR_SIZE)"
+              echo "- Release type: \`$RELEASE_TYPE\`"
+              echo "- CurseForge file: [#$FILE_ID]($CF_URL)"
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice::▰▰▰▰▰ 100% Uploaded as file #$FILE_ID → $CF_URL"
+          fi
