@@ -230,6 +230,9 @@ jobs:
       CF_GAME_VERSION_IDS: ${{ vars.CF_GAME_VERSION_IDS }}
       RELEASE_TYPE: ${{ needs.resolve.outputs.release_type }}
       MOD_VERSION: ${{ needs.build.outputs.mod_version }}
+      # changelog 生成 / deployment query で gh api を使うため
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      COMMIT_SHA: ${{ github.sha }}
     steps:
       - name: '1/5 ▰▱▱▱▱ (20%)  Validate secrets'
         run: |
@@ -268,10 +271,54 @@ jobs:
           echo "| 2/5 Download jar ($SIZE) | ✅ done |" >> "$GITHUB_STEP_SUMMARY"
           echo "::notice::▰▰▱▱▱ 40%  jar=$(basename $JAR) size=$SIZE"
 
-      - name: '3/5 ▰▰▰▱▱ (60%)  Prepare metadata'
+      - name: '3/5 ▰▰▰▱▱ (60%)  Prepare metadata (auto-changelog)'
         run: |
           GAME_VER_JSON=$(echo "[$CF_GAME_VERSION_IDS]")
-          CHANGELOG=$(git log -1 --pretty=%B 2>/dev/null || echo "Automated release: $MOD_VERSION")
+
+          # ── changelog 自動生成 ────────────────────────────────────────────
+          # 前回成功した curseforge 環境 deployment の SHA を取得し、 そこから HEAD までの
+          # commit を 1 行サマリで列挙 (`gh api` のみ、 git checkout 不要)。 前回成功が無い場合
+          # は 最新 20 commit を使う。
+          LAST_CF_SHA=""
+          DEPS_JSON=$(gh api "repos/${{ github.repository }}/deployments?environment=curseforge&per_page=30" 2>/dev/null || echo "[]")
+          for DEP_ID in $(echo "$DEPS_JSON" | jq -r '.[].id'); do
+            STATE=$(gh api "repos/${{ github.repository }}/deployments/$DEP_ID/statuses?per_page=10" \
+              --jq '[.[] | .state] | map(select(. == "success" or . == "failure" or . == "in_progress")) | .[0] // ""' 2>/dev/null || echo "")
+            DEP_SHA=$(echo "$DEPS_JSON" | jq -r ".[] | select(.id == $DEP_ID) | .sha")
+            # 今回の deployment 自身 (= COMMIT_SHA) は skip
+            if [ "$DEP_SHA" = "$COMMIT_SHA" ]; then continue; fi
+            if [ "$STATE" = "success" ]; then
+              LAST_CF_SHA="$DEP_SHA"
+              break
+            fi
+          done
+
+          if [ -n "$LAST_CF_SHA" ]; then
+            echo "[changelog] base = last successful CF deployment $LAST_CF_SHA"
+            # compare API は最大 250 commit (それ以上は別 fetch 必要だが通常リリースでは十分)
+            COMMITS=$(gh api "repos/${{ github.repository }}/compare/${LAST_CF_SHA}...${COMMIT_SHA}" \
+              --jq '.commits | reverse | .[] | "- " + (.commit.message | split("\n")[0]) + " (`" + .sha[0:7] + "`)"' 2>/dev/null || echo "")
+            CHANGELOG_HEADER="## Changes since previous CurseForge release (\`${LAST_CF_SHA:0:7}\`)"
+          else
+            echo "[changelog] no prior successful CF deployment — using last 20 commits"
+            COMMITS=$(gh api "repos/${{ github.repository }}/commits?sha=${COMMIT_SHA}&per_page=20" \
+              --jq '.[] | "- " + (.commit.message | split("\n")[0]) + " (`" + .sha[0:7] + "`)"' 2>/dev/null || echo "")
+            CHANGELOG_HEADER="## Recent commits (last 20)"
+          fi
+
+          if [ -z "$COMMITS" ]; then
+            CHANGELOG=$(printf "Automated release: %s" "$MOD_VERSION")
+          else
+            # CHANGELOG = header + 空行 + commit list
+            CHANGELOG=$(printf "%s\n\n%s\n" "$CHANGELOG_HEADER" "$COMMITS")
+          fi
+
+          # log にも changelog を吐く (デバッグ用)
+          echo "── auto-generated changelog ──────────"
+          echo "$CHANGELOG"
+          echo "────────────────────────────────────"
+
+          # JSON metadata 組み立て (jq が --arg で改行/quote を escape してくれる)
           METADATA=$(jq -nc \
             --arg cl "$CHANGELOG" \
             --arg rt "$RELEASE_TYPE" \
@@ -283,8 +330,19 @@ jobs:
             echo "$METADATA"
             echo '__EOF__'
           } >> "$GITHUB_ENV"
-          echo "| 3/5 Prepare metadata | ✅ done |" >> "$GITHUB_STEP_SUMMARY"
-          echo "::notice::▰▰▰▱▱ 60%  metadata prepared ($(echo $METADATA | wc -c) bytes)"
+
+          # Job summary にも changelog プレビューを出す (5/5 まで保持される)
+          {
+            echo ""
+            echo "### Changelog (sent to CurseForge)"
+            echo ""
+            echo "$CHANGELOG"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          COMMIT_COUNT=$(echo "$COMMITS" | grep -c '^-' || echo 0)
+          echo "| 3/5 Prepare metadata ($COMMIT_COUNT commits in changelog) | ✅ done |" >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice::▰▰▰▱▱ 60%  metadata prepared ($COMMIT_COUNT commits, $(echo $METADATA | wc -c) bytes)"
 
       - name: '4/5 ▰▰▰▰▱ (80%)  Upload to CurseForge (curl --progress-bar)'
         run: |
