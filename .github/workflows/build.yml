@@ -202,284 +202,100 @@ jobs:
           retention-days: 30
 
   # ───────────────────────────────────────────────────────────────────
-  # CurseForge アップロード。
-  # `environment: curseforge` の Required Reviewers ルールでゲートされる。
+  # CurseForge アップロード approval — 「checkbox UI」 を実現するため、 build 直後に
+  # release type 選択 用の Issue を作成して checkbox に tick → close で承認、 という
+  # フローにしている。 実際のアップロードは別 workflow ({@code cf-upload.yml}) で
+  # issue close イベントから起動される。
   #
   # セットアップ (リポジトリ管理者):
   #   1. Settings → Environments → New environment "curseforge"
-  #   2. Required reviewers にメンテナを追加 (承認ゲート)
+  #   2. Required reviewers にメンテナを追加 (任意の 2 重 gate)
   #   3. Environment secrets に CURSEFORGE_TOKEN を追加
-  #      (CurseForge → My Account → API Tokens で発行)
-  #   4. Environment secrets / variables に CURSEFORGE_PROJECT_ID を追加
+  #   4. Environment secrets に CURSEFORGE_PROJECT_ID を追加
   #   5. Repository variable に CF_GAME_VERSION_IDS を追加
-  #      (CurseForge 1.20.1 + Forge の数値 ID をカンマ区切りで、例: "9990,7498")
   # ───────────────────────────────────────────────────────────────────
+  # Release Type 選択用 Issue を作成 (= checkbox UI)。
+  # 実際の CF upload は別 workflow ({@code cf-upload.yml}) で issue close 時に発火。
   # ───────────────────────────────────────────────────────────────────
-  # 各 step を分割することで GitHub UI に ✅ チェックマーク と所要時間が出る
-  # → "1/5 …", "2/5 …" 形式で 進捗 % が視覚的にわかる。
-  # $GITHUB_STEP_SUMMARY には Job ページ下部の Summary に進捗バー表示も追加。
-  # ───────────────────────────────────────────────────────────────────
-  # ジョブ名に承認者向けヘルプを入れて、 承認時の comment 欄で release_type を override 可能に。
-  # 承認 comment に "release" / "beta" / "alpha" / "test" のどれかを書くと、
-  # その type で jar を再ビルドしてから CurseForge にアップロードする。
-  # comment が空 / 未対応キーワード → resolve job で決まった type (alpha が既定) のまま。
-  curseforge_upload:
-    name: 'CurseForge upload (comment: release|beta|alpha|test to override)'
+  create_approval_issue:
+    name: 'Create CurseForge approval issue (checkbox UI)'
     needs: [resolve, build]
     if: needs.resolve.outputs.should_upload == 'true'
     runs-on: ubuntu-latest
-    environment: curseforge
+    permissions:
+      issues: write
+      contents: read
     env:
-      CF_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
-      CF_PROJECT_ID: ${{ secrets.CURSEFORGE_PROJECT_ID }}
-      CF_GAME_VERSION_IDS: ${{ vars.CF_GAME_VERSION_IDS }}
-      RELEASE_TYPE: ${{ needs.resolve.outputs.release_type }}
-      MOD_VERSION: ${{ needs.build.outputs.mod_version }}
-      # changelog 生成 / deployment query で gh api を使うため
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      DEFAULT_TYPE: ${{ needs.resolve.outputs.release_type }}
+      JAR_NAME: ${{ needs.build.outputs.jar_name }}
+      MOD_VERSION: ${{ needs.build.outputs.mod_version }}
       COMMIT_SHA: ${{ github.sha }}
+      RUN_ID: ${{ github.run_id }}
     steps:
-      - name: '1/5 ▰▱▱▱▱ (20%)  Validate secrets'
+      - name: 'Close any superseded approval issues'
         run: |
-          # Summary 表の header を初期化 (各 step が自分の行を append していく方式 = sed 不要)
-          {
-            echo "## CurseForge upload progress"
-            echo ""
-            echo "| Step | Status |"
-            echo "|---|---|"
-          } > "$GITHUB_STEP_SUMMARY"
-          if [ -z "$CF_TOKEN" ] || [ -z "$CF_PROJECT_ID" ] || [ -z "$CF_GAME_VERSION_IDS" ]; then
-            echo "| 1/5 Validate secrets | ❌ missing |" >> "$GITHUB_STEP_SUMMARY"
-            echo "::error::Missing required secret/variable: CURSEFORGE_TOKEN / CURSEFORGE_PROJECT_ID / CF_GAME_VERSION_IDS"
-            exit 1
-          fi
-          echo "| 1/5 Validate secrets | ✅ done |" >> "$GITHUB_STEP_SUMMARY"
-          echo "::notice::▰▱▱▱▱ 20%  secrets OK ($(echo $CF_TOKEN | wc -c) char token, project $CF_PROJECT_ID)"
-
-      - name: '2/5 ▰▰▱▱▱ (40%)  Download built jar'
-        uses: actions/download-artifact@v8
-        with:
-          name: backpack-arsenal-jar
-          path: dist
-
-      - name: '2/5 ▰▰▱▱▱ (40%)  Verify jar artifact'
-        run: |
-          JAR=$(ls dist/*.jar | grep -v sources | grep -v javadoc | head -1)
-          if [ ! -f "$JAR" ]; then
-            echo "| 2/5 Download jar | ❌ missing |" >> "$GITHUB_STEP_SUMMARY"
-            echo "::error::No jar found in dist/"
-            exit 1
-          fi
-          SIZE=$(du -h "$JAR" | cut -f1)
-          echo "JAR_PATH=$JAR" >> "$GITHUB_ENV"
-          echo "JAR_SIZE=$SIZE" >> "$GITHUB_ENV"
-          echo "| 2/5 Download jar ($SIZE) | ✅ done |" >> "$GITHUB_STEP_SUMMARY"
-          echo "::notice::▰▰▱▱▱ 40%  jar=$(basename $JAR) size=$SIZE"
-
-      # ── 承認 comment による release_type 上書き ──────────────────────────
-      # GitHub の Environment 承認画面の「comment」 欄に書いた文字列を query して、
-      # release / beta / alpha / test のキーワードを検出。 違う type が要求された場合は
-      # 再ビルドして jar を差し替える。 これで「checkbox」 相当の UX:
-      #   - 何も書かない    → そのまま (resolve job の決定 = 大抵 alpha)
-      #   - "release"     → 再ビルドで suffix 無しの release jar
-      #   - "beta"        → 再ビルドで -beta jar
-      #   - "alpha"       → 既定 alpha なら no-op
-      #   - "test"        → upload skip にしたいが既に approved 後なので、 type=test で
-      #                      ビルドした jar を CF に上げる (= test 名前 で alpha 同然)
-      - name: 'Override release_type from approval comment'
-        id: override
-        run: |
-          # この commit に紐付く curseforge deployment の最新 1 件 を query
-          DEP_ID=$(gh api "repos/${{ github.repository }}/deployments?environment=curseforge&sha=$COMMIT_SHA&per_page=1" \
-            --jq '.[0].id // empty' 2>/dev/null || echo "")
-          if [ -z "$DEP_ID" ]; then
-            echo "no deployment found for $COMMIT_SHA — skip override"
-            echo "needs_rebuild=false" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-          # deployment status の description 全部に検査かける (最新 success の description が
-          # 承認時 comment のはず)
-          COMMENTS=$(gh api "repos/${{ github.repository }}/deployments/$DEP_ID/statuses?per_page=20" \
-            --jq '.[].description // empty' 2>/dev/null | grep -vE '^$' | tr '\n' ' ')
-          echo "approval comments: '$COMMENTS'"
-          OVERRIDE=""
-          if echo "$COMMENTS" | grep -qiE '(^|[^a-z])release([^a-z]|$)'; then OVERRIDE=release
-          elif echo "$COMMENTS" | grep -qiE '(^|[^a-z])beta([^a-z]|$)'; then OVERRIDE=beta
-          elif echo "$COMMENTS" | grep -qiE '(^|[^a-z])alpha([^a-z]|$)'; then OVERRIDE=alpha
-          elif echo "$COMMENTS" | grep -qiE '(^|[^a-z])test([^a-z]|$)'; then OVERRIDE=test
-          fi
-          if [ -n "$OVERRIDE" ] && [ "$OVERRIDE" != "$RELEASE_TYPE" ]; then
-            echo "::notice::release_type override via approval comment: $RELEASE_TYPE → $OVERRIDE"
-            echo "| 2.5 Approval comment override | ✅ $RELEASE_TYPE → $OVERRIDE (rebuild) |" >> "$GITHUB_STEP_SUMMARY"
-            echo "release_type=$OVERRIDE" >> $GITHUB_OUTPUT
-            echo "needs_rebuild=true" >> $GITHUB_OUTPUT
-          else
-            echo "::notice::no release_type override (comment='${COMMENTS}', current=$RELEASE_TYPE)"
-            echo "| 2.5 Approval comment override | ⇣ none ($RELEASE_TYPE kept) |" >> "$GITHUB_STEP_SUMMARY"
-            echo "needs_rebuild=false" >> $GITHUB_OUTPUT
-          fi
-
-      # rebuild 用の checkout + jdk + cache (override 時のみ)
-      - name: 'Checkout for rebuild'
-        if: steps.override.outputs.needs_rebuild == 'true'
-        uses: actions/checkout@v6
-
-      - name: 'JDK 17 for rebuild'
-        if: steps.override.outputs.needs_rebuild == 'true'
-        uses: actions/setup-java@v5
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: 'Restore gradle cache for rebuild'
-        if: steps.override.outputs.needs_rebuild == 'true'
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.gradle/caches/modules-2
-            ~/.gradle/caches/jars-9
-            ~/.gradle/caches/transforms-3
-            ~/.gradle/caches/forge_gradle
-            ~/.gradle/wrapper
-            build/createMcpToSrg
-            build/createSrgToMcp
-            build/extractSrg
-            build/downloadMCMeta
-            build/downloadMcpConfig
-          key: gradle-fg6-v3-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-
-      - name: 'Rebuild jar with overridden release_type'
-        if: steps.override.outputs.needs_rebuild == 'true'
-        env:
-          NEW_TYPE: ${{ steps.override.outputs.release_type }}
-        run: |
-          echo "::notice::rebuilding with -Prelease_type=$NEW_TYPE ..."
-          ./gradlew assemble -x test --no-daemon -Prelease_type="$NEW_TYPE"
-          NEW_JAR=$(ls build/libs/*.jar | grep -v sources | grep -v javadoc | head -1)
-          if [ ! -f "$NEW_JAR" ]; then
-            echo "::error::rebuild failed — no jar produced"
-            exit 1
-          fi
-          # 古い jar 入れ替え
-          rm -f dist/*.jar
-          cp "$NEW_JAR" dist/
-          NEW_SIZE=$(du -h "$NEW_JAR" | cut -f1)
-          # env 上書き (以降の step で新 jar / 新 type が使われる)
-          echo "JAR_PATH=dist/$(basename $NEW_JAR)" >> $GITHUB_ENV
-          echo "JAR_SIZE=$NEW_SIZE" >> $GITHUB_ENV
-          echo "RELEASE_TYPE=$NEW_TYPE" >> $GITHUB_ENV
-          echo "::notice::rebuilt: $(basename $NEW_JAR) ($NEW_SIZE) type=$NEW_TYPE"
-
-      - name: '3/5 ▰▰▰▱▱ (60%)  Prepare metadata (auto-changelog)'
-        run: |
-          GAME_VER_JSON=$(echo "[$CF_GAME_VERSION_IDS]")
-
-          # ── changelog 自動生成 ────────────────────────────────────────────
-          # 前回成功した curseforge 環境 deployment の SHA を取得し、 そこから HEAD までの
-          # commit を 1 行サマリで列挙 (`gh api` のみ、 git checkout 不要)。 前回成功が無い場合
-          # は 最新 20 commit を使う。
-          LAST_CF_SHA=""
-          DEPS_JSON=$(gh api "repos/${{ github.repository }}/deployments?environment=curseforge&per_page=30" 2>/dev/null || echo "[]")
-          for DEP_ID in $(echo "$DEPS_JSON" | jq -r '.[].id'); do
-            STATE=$(gh api "repos/${{ github.repository }}/deployments/$DEP_ID/statuses?per_page=10" \
-              --jq '[.[] | .state] | map(select(. == "success" or . == "failure" or . == "in_progress")) | .[0] // ""' 2>/dev/null || echo "")
-            DEP_SHA=$(echo "$DEPS_JSON" | jq -r ".[] | select(.id == $DEP_ID) | .sha")
-            # 今回の deployment 自身 (= COMMIT_SHA) は skip
-            if [ "$DEP_SHA" = "$COMMIT_SHA" ]; then continue; fi
-            if [ "$STATE" = "success" ]; then
-              LAST_CF_SHA="$DEP_SHA"
-              break
+          # 既存の cf-approval-pending な issue を全部 close (= 最新 push だけ生かす)
+          gh issue list --label "cf-approval-pending" --state open --json number --jq '.[].number' | \
+          while read NUM; do
+            if [ -n "$NUM" ]; then
+              gh issue close "$NUM" --comment "Superseded by new push \`${COMMIT_SHA:0:7}\` (run #$RUN_ID)" --reason "not planned" || true
             fi
           done
 
-          if [ -n "$LAST_CF_SHA" ]; then
-            echo "[changelog] base = last successful CF deployment $LAST_CF_SHA"
-            # compare API は最大 250 commit (それ以上は別 fetch 必要だが通常リリースでは十分)
-            COMMITS=$(gh api "repos/${{ github.repository }}/compare/${LAST_CF_SHA}...${COMMIT_SHA}" \
-              --jq '.commits | reverse | .[] | "- " + (.commit.message | split("\n")[0]) + " (`" + .sha[0:7] + "`)"' 2>/dev/null || echo "")
-            CHANGELOG_HEADER="## Changes since previous CurseForge release (\`${LAST_CF_SHA:0:7}\`)"
-          else
-            echo "[changelog] no prior successful CF deployment — using last 20 commits"
-            COMMITS=$(gh api "repos/${{ github.repository }}/commits?sha=${COMMIT_SHA}&per_page=20" \
-              --jq '.[] | "- " + (.commit.message | split("\n")[0]) + " (`" + .sha[0:7] + "`)"' 2>/dev/null || echo "")
-            CHANGELOG_HEADER="## Recent commits (last 20)"
-          fi
+      - name: 'Ensure labels exist'
+        run: |
+          gh label create "cf-approval-pending" --color "FBCA04" --description "Awaiting checkbox tick + close for CF upload" 2>/dev/null || true
+          gh label create "cf-cancelled" --color "B60205" --description "CF upload cancelled" 2>/dev/null || true
 
-          if [ -z "$COMMITS" ]; then
-            CHANGELOG=$(printf "Automated release: %s" "$MOD_VERSION")
-          else
-            # CHANGELOG = header + 空行 + commit list
-            CHANGELOG=$(printf "%s\n\n%s\n" "$CHANGELOG_HEADER" "$COMMITS")
-          fi
+      - name: 'Create approval issue with checkbox'
+        run: |
+          # 末尾に SHA / RUN_ID / DEFAULT_TYPE を metadata footer として埋め込む
+          # (cf-upload.yml がそれを parse して使う)
+          cat > /tmp/body.md <<EOF
+          ## CurseForge Upload Approval
 
-          # log にも changelog を吐く (デバッグ用)
-          echo "── auto-generated changelog ──────────"
-          echo "$CHANGELOG"
-          echo "────────────────────────────────────"
+          | Field | Value |
+          |---|---|
+          | jar           | \`${JAR_NAME}\` |
+          | mod version   | \`${MOD_VERSION}\` |
+          | commit        | \`${COMMIT_SHA:0:7}\` |
+          | default type  | **${DEFAULT_TYPE}** |
+          | build run     | [#${RUN_ID}](https://github.com/${{ github.repository }}/actions/runs/${RUN_ID}) |
 
-          # JSON metadata 組み立て (jq が --arg で改行/quote を escape してくれる)
-          METADATA=$(jq -nc \
-            --arg cl "$CHANGELOG" \
-            --arg rt "$RELEASE_TYPE" \
-            --argjson gv "$GAME_VER_JSON" \
-            '{ changelog: $cl, changelogType: "markdown", releaseType: $rt, gameVersions: $gv }')
-          # 改行/quote を保ったまま次 step に渡すため heredoc に書き出す
+          ### 1. Tick ONE release type:
+          - [ ] **alpha** — CurseForge alpha
+          - [ ] **beta** — CurseForge beta
+          - [ ] **release** — CurseForge release (suffix なし jar)
+          - [ ] **test** — build はするが CF にはアップしない (jar artifact のみ)
+
+          (どれも tick しなかった場合は default = \`${DEFAULT_TYPE}\` で upload)
+
+          ### 2. Close this issue
+          → \`cf-upload.yml\` workflow が起動 → 必要なら再 build → CF アップロード
+
+          ### キャンセル
+          このまま 何も tick せず close + \`cf-cancelled\` label を付ければ skip。
+
+          ---
+          <!-- BACKPACK_ARSENAL_METADATA
+          sha=${COMMIT_SHA}
+          run_id=${RUN_ID}
+          default_type=${DEFAULT_TYPE}
+          jar_name=${JAR_NAME}
+          mod_version=${MOD_VERSION}
+          -->
+          EOF
+
+          ISSUE_URL=$(gh issue create \
+            --title "CF approval: ${JAR_NAME} (\`${COMMIT_SHA:0:7}\`)" \
+            --body-file /tmp/body.md \
+            --label "cf-approval-pending")
+          echo "::notice::Approval issue created: $ISSUE_URL"
           {
-            echo 'METADATA<<__EOF__'
-            echo "$METADATA"
-            echo '__EOF__'
-          } >> "$GITHUB_ENV"
-
-          # Job summary にも changelog プレビューを出す (5/5 まで保持される)
-          {
+            echo "## Approval issue created"
             echo ""
-            echo "### Changelog (sent to CurseForge)"
+            echo "$ISSUE_URL"
             echo ""
-            echo "$CHANGELOG"
-            echo ""
+            echo "Tick a release type checkbox & close the issue to trigger upload."
           } >> "$GITHUB_STEP_SUMMARY"
-
-          COMMIT_COUNT=$(echo "$COMMITS" | grep -c '^-' || echo 0)
-          echo "| 3/5 Prepare metadata ($COMMIT_COUNT commits in changelog) | ✅ done |" >> "$GITHUB_STEP_SUMMARY"
-          echo "::notice::▰▰▰▱▱ 60%  metadata prepared ($COMMIT_COUNT commits, $(echo $METADATA | wc -c) bytes)"
-
-      - name: '4/5 ▰▰▰▰▱ (80%)  Upload to CurseForge (curl --progress-bar)'
-        run: |
-          echo "::notice::▰▰▰▰▱ 80%  POST $(basename $JAR_PATH) ($JAR_SIZE) as $RELEASE_TYPE ..."
-          # --progress-bar で進捗を log に吐く。 終わったら status コードを HTTP_CODE に。
-          HTTP=$(curl --progress-bar \
-            -o response.json -w "%{http_code}" \
-            -H "X-Api-Token: $CF_TOKEN" \
-            -F "metadata=$METADATA" \
-            -F "file=@$JAR_PATH" \
-            "https://minecraft.curseforge.com/api/projects/$CF_PROJECT_ID/upload-file")
-          echo "HTTP_CODE=$HTTP" >> "$GITHUB_ENV"
-          echo "::notice::upload HTTP $HTTP"
-          if [ "$HTTP" != "200" ]; then
-            echo "| 4/5 Upload to CurseForge | ❌ HTTP $HTTP |" >> "$GITHUB_STEP_SUMMARY"
-            echo "::error::CurseForge upload failed with HTTP $HTTP"
-            cat response.json | head -40
-            exit 1
-          fi
-          echo "| 4/5 Upload to CurseForge ($JAR_SIZE) | ✅ HTTP 200 |" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: '5/5 ▰▰▰▰▰ (100%) Verify CurseForge response'
-        run: |
-          FILE_ID=$(jq -r '.id // empty' response.json 2>/dev/null || true)
-          if [ -z "$FILE_ID" ]; then
-            echo "| 5/5 Verify response | ⚠ no file id (HTTP 200 but unknown body) |" >> "$GITHUB_STEP_SUMMARY"
-            echo "::warning::HTTP 200 but no file id in response — check CurseForge."
-            cat response.json
-          else
-            CF_URL="https://www.curseforge.com/minecraft/mc-mods/arsenal-backpack/files/$FILE_ID"
-            echo "| 5/5 Verify response (file #$FILE_ID) | ✅ done |" >> "$GITHUB_STEP_SUMMARY"
-            {
-              echo ""
-              echo "### ✅ Uploaded"
-              echo ""
-              echo "- File: \`$(basename $JAR_PATH)\` ($JAR_SIZE)"
-              echo "- Release type: \`$RELEASE_TYPE\`"
-              echo "- CurseForge file: [#$FILE_ID]($CF_URL)"
-            } >> "$GITHUB_STEP_SUMMARY"
-            echo "::notice::▰▰▰▰▰ 100% Uploaded as file #$FILE_ID → $CF_URL"
-          fi

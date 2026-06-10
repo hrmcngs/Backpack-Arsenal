@@ -1,0 +1,221 @@
+name: CF Upload (issue-triggered)
+
+# Issue close をトリガに、 build.yml が作った approval issue を解析して
+# CurseForge にアップロード。 release_type は issue 本文の checkbox から決定:
+#   - [x] alpha    → CF alpha
+#   - [x] beta     → CF beta
+#   - [x] release  → CF release (suffix 無し jar)
+#   - [x] test     → CF アップロード skip
+#   (none ticked) → metadata footer の default_type 採用
+#
+# 認可: cf-approval-pending label が付いてる issue を、 リポ owner / collaborator が
+# close したときのみ実行。 cf-cancelled label が付いてたら skip。
+
+on:
+  issues:
+    types: [closed]
+
+permissions:
+  issues: write
+  contents: read
+  actions: read
+
+jobs:
+  upload:
+    if: >
+      contains(github.event.issue.labels.*.name, 'cf-approval-pending') &&
+      !contains(github.event.issue.labels.*.name, 'cf-cancelled') &&
+      github.event.sender.login == github.event.repository.owner.login
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      CF_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
+      CF_PROJECT_ID: ${{ secrets.CURSEFORGE_PROJECT_ID }}
+      CF_GAME_VERSION_IDS: ${{ vars.CF_GAME_VERSION_IDS }}
+      ISSUE_NUMBER: ${{ github.event.issue.number }}
+    steps:
+      # ── checkbox + metadata footer を解析 ─────────────────────────────
+      - name: 'Parse issue body for release_type / sha'
+        id: parse
+        run: |
+          BODY=$(gh issue view "$ISSUE_NUMBER" --json body --jq .body)
+          # metadata footer の SHA / run_id / default_type を抜く
+          SHA=$(echo "$BODY" | grep -E '^sha=' | head -1 | cut -d= -f2)
+          RUN_ID=$(echo "$BODY" | grep -E '^run_id=' | head -1 | cut -d= -f2)
+          DEFAULT_TYPE=$(echo "$BODY" | grep -E '^default_type=' | head -1 | cut -d= -f2)
+          MOD_VERSION=$(echo "$BODY" | grep -E '^mod_version=' | head -1 | cut -d= -f2)
+
+          # checkbox 解析: 先に来たもの優先 (release > beta > alpha > test の順で探す)
+          TYPE=""
+          if echo "$BODY" | grep -qiE '^- \[x\] \*\*release\*\*'; then TYPE=release
+          elif echo "$BODY" | grep -qiE '^- \[x\] \*\*beta\*\*'; then TYPE=beta
+          elif echo "$BODY" | grep -qiE '^- \[x\] \*\*alpha\*\*'; then TYPE=alpha
+          elif echo "$BODY" | grep -qiE '^- \[x\] \*\*test\*\*'; then TYPE=test
+          fi
+          if [ -z "$TYPE" ]; then
+            TYPE="$DEFAULT_TYPE"
+            echo "::notice::no checkbox ticked → using default_type=$TYPE"
+          else
+            echo "::notice::release_type from checkbox: $TYPE"
+          fi
+
+          echo "release_type=$TYPE" >> $GITHUB_OUTPUT
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+          echo "mod_version=$MOD_VERSION" >> $GITHUB_OUTPUT
+
+          {
+            echo "## CurseForge upload from approval issue #$ISSUE_NUMBER"
+            echo ""
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| release_type | \`$TYPE\` |"
+            echo "| sha          | \`${SHA:0:7}\` |"
+            echo "| mod_version  | \`$MOD_VERSION\` |"
+            echo "| build run    | [#$RUN_ID](https://github.com/${{ github.repository }}/actions/runs/$RUN_ID) |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # ── test type: jar build せず skip ────────────────────────────────
+      - name: 'Skip (release_type=test)'
+        if: steps.parse.outputs.release_type == 'test'
+        run: |
+          gh issue comment "$ISSUE_NUMBER" --body "✅ Approved as **test** — no CurseForge upload performed (build artifact already produced in run #${{ steps.parse.outputs.run_id }})."
+          gh issue edit "$ISSUE_NUMBER" --add-label "cf-test-only"
+          {
+            echo ""
+            echo "### test mode — no upload."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+
+      # ── 通常 type: ビルド → CF アップロード ────────────────────────────
+      - name: 'Checkout (at issue sha)'
+        if: steps.parse.outputs.release_type != 'test'
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.parse.outputs.sha }}
+          fetch-depth: 1
+
+      - name: 'Set up JDK 17'
+        if: steps.parse.outputs.release_type != 'test'
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 'Restore gradle cache'
+        if: steps.parse.outputs.release_type != 'test'
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/jars-9
+            ~/.gradle/caches/transforms-3
+            ~/.gradle/caches/forge_gradle
+            ~/.gradle/wrapper
+            build/createMcpToSrg
+            build/createSrgToMcp
+            build/extractSrg
+            build/downloadMCMeta
+            build/downloadMcpConfig
+          key: gradle-fg6-v3-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+
+      - name: 'Build jar with selected release_type'
+        if: steps.parse.outputs.release_type != 'test'
+        env:
+          NEW_TYPE: ${{ steps.parse.outputs.release_type }}
+        run: |
+          ./gradlew assemble -x test --no-daemon -Prelease_type="$NEW_TYPE"
+          JAR=$(ls build/libs/*.jar | grep -v sources | grep -v javadoc | head -1)
+          if [ ! -f "$JAR" ]; then
+            echo "::error::no jar produced"
+            exit 1
+          fi
+          SIZE=$(du -h "$JAR" | cut -f1)
+          echo "JAR_PATH=$JAR" >> $GITHUB_ENV
+          echo "JAR_SIZE=$SIZE" >> $GITHUB_ENV
+          echo "RELEASE_TYPE=$NEW_TYPE" >> $GITHUB_ENV
+          echo "::notice::built $(basename $JAR) ($SIZE)"
+
+      - name: 'Validate CF secrets'
+        if: steps.parse.outputs.release_type != 'test'
+        run: |
+          if [ -z "$CF_TOKEN" ] || [ -z "$CF_PROJECT_ID" ] || [ -z "$CF_GAME_VERSION_IDS" ]; then
+            echo "::error::CURSEFORGE_TOKEN / CURSEFORGE_PROJECT_ID / CF_GAME_VERSION_IDS の secret/variable が足りません"
+            exit 1
+          fi
+
+      - name: 'Prepare CurseForge metadata (auto-changelog)'
+        if: steps.parse.outputs.release_type != 'test'
+        env:
+          COMMIT_SHA: ${{ steps.parse.outputs.sha }}
+        run: |
+          GAME_VER_JSON=$(echo "[$CF_GAME_VERSION_IDS]")
+
+          # 前回成功 CF deployment / issue から SHA を引き、 そこから今回までの commit を列挙。
+          # この workflow は environment 使わないので、 「前回成功」 = 前回 close された
+          # cf-approval-pending issue の merge commit を採用。 simpler に latest 20 で fallback。
+          COMMITS=$(gh api "repos/${{ github.repository }}/commits?sha=${COMMIT_SHA}&per_page=20" \
+            --jq '.[] | "- " + (.commit.message | split("\n")[0]) + " (`" + .sha[0:7] + "`)"' 2>/dev/null || echo "")
+          if [ -z "$COMMITS" ]; then
+            CHANGELOG="Automated release: ${{ steps.parse.outputs.mod_version }}"
+          else
+            CHANGELOG=$(printf "## Recent changes\n\n%s\n" "$COMMITS")
+          fi
+
+          METADATA=$(jq -nc \
+            --arg cl "$CHANGELOG" \
+            --arg rt "$RELEASE_TYPE" \
+            --argjson gv "$GAME_VER_JSON" \
+            '{ changelog: $cl, changelogType: "markdown", releaseType: $rt, gameVersions: $gv }')
+          {
+            echo 'METADATA<<__EOF__'
+            echo "$METADATA"
+            echo '__EOF__'
+          } >> "$GITHUB_ENV"
+          {
+            echo ""
+            echo "### Changelog (sent to CurseForge)"
+            echo ""
+            echo "$CHANGELOG"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 'Upload to CurseForge'
+        if: steps.parse.outputs.release_type != 'test'
+        run: |
+          echo "::notice::POST $(basename $JAR_PATH) ($JAR_SIZE) as $RELEASE_TYPE ..."
+          HTTP=$(curl --progress-bar \
+            -o response.json -w "%{http_code}" \
+            -H "X-Api-Token: $CF_TOKEN" \
+            -F "metadata=$METADATA" \
+            -F "file=@$JAR_PATH" \
+            "https://minecraft.curseforge.com/api/projects/$CF_PROJECT_ID/upload-file")
+          echo "::notice::upload HTTP $HTTP"
+          if [ "$HTTP" != "200" ]; then
+            echo "::error::CurseForge upload failed with HTTP $HTTP"
+            cat response.json | head -40
+            gh issue comment "$ISSUE_NUMBER" --body "❌ CurseForge upload failed (HTTP $HTTP). See run logs."
+            gh issue edit "$ISSUE_NUMBER" --add-label "cf-upload-failed" --remove-label "cf-approval-pending"
+            exit 1
+          fi
+
+      - name: 'Verify CurseForge response & notify issue'
+        if: steps.parse.outputs.release_type != 'test'
+        run: |
+          FILE_ID=$(jq -r '.id // empty' response.json 2>/dev/null || true)
+          if [ -z "$FILE_ID" ]; then
+            gh issue comment "$ISSUE_NUMBER" --body "⚠ Upload returned HTTP 200 but no file id — check CurseForge manually."
+            exit 0
+          fi
+          CF_URL="https://www.curseforge.com/minecraft/mc-mods/arsenal-backpack/files/$FILE_ID"
+          gh issue comment "$ISSUE_NUMBER" --body "✅ Uploaded as **$RELEASE_TYPE**: [\`$(basename $JAR_PATH)\` #$FILE_ID]($CF_URL)"
+          gh issue edit "$ISSUE_NUMBER" --add-label "cf-uploaded" --remove-label "cf-approval-pending"
+          {
+            echo ""
+            echo "### ✅ Uploaded"
+            echo ""
+            echo "- File: \`$(basename $JAR_PATH)\` ($JAR_SIZE)"
+            echo "- Release type: \`$RELEASE_TYPE\`"
+            echo "- CurseForge file: [#$FILE_ID]($CF_URL)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice::Uploaded as file #$FILE_ID → $CF_URL"
