@@ -287,24 +287,35 @@ jobs:
             }
 
             // ── 2. 新規 issue 作成 ──
+            // tick 候補から base version (suffix 抜き) を作って 全 type の最終 jar 名を見せる
+            const baseVer = MOD_VERSION.replace(/-(alpha|beta|rc|test)(\.\d+)?$/i, '');
+            const jarBase = JAR_NAME.replace(/-[\d.]+(-(alpha|beta|rc|test)(\.\d+)?)?\.jar$/i, '');
+            const finalJarFor = (t) => {
+              const suffix = t === 'release' ? '' : `-${t}`;
+              return `${jarBase}-${baseVer}${suffix}.jar`;
+            };
+
             const body = [
               '## CurseForge Upload Approval',
               '',
               '| Field | Value |',
               '|---|---|',
-              `| jar           | \`${JAR_NAME}\` |`,
-              `| mod version   | \`${MOD_VERSION}\` |`,
-              `| commit        | \`${shortSha}\` |`,
-              `| default type  | **${DEFAULT_TYPE}** |`,
-              `| build run     | [#${RUN_ID}](${repoUrl}/actions/runs/${RUN_ID}) |`,
+              `| base version | \`${baseVer}\` |`,
+              `| commit       | \`${shortSha}\` |`,
+              `| default type | **${DEFAULT_TYPE}** |`,
+              `| build run    | [#${RUN_ID}](${repoUrl}/actions/runs/${RUN_ID}) (built as \`${JAR_NAME}\`) |`,
+              '',
+              '> ⚠ build artifact (上の jar) は CI の既定値 = `' + DEFAULT_TYPE + '` で作ったもの。',
+              '> 実際に CurseForge にアップロードされる jar は **下で tick した type で再ビルド** されるため、',
+              '> 下表の通り 名前が変わります。',
               '',
               '### 1. Tick ONE release type:',
-              '- [ ] **alpha** — CurseForge alpha',
-              '- [ ] **beta** — CurseForge beta',
-              '- [ ] **release** — CurseForge release (suffix なし jar)',
-              '- [ ] **test** — build はするが CF にはアップしない (jar artifact のみ)',
+              `- [ ] **alpha** — \`${finalJarFor('alpha')}\` (CF alpha)`,
+              `- [ ] **beta** — \`${finalJarFor('beta')}\` (CF beta)`,
+              `- [ ] **release** — \`${finalJarFor('release')}\` (CF release, suffix 無し)`,
+              `- [ ] **test** — build はするが CF にはアップしない (jar artifact のみ)`,
               '',
-              `(どれも tick しなかった場合は default = \`${DEFAULT_TYPE}\` で upload)`,
+              `(どれも tick しなかった場合は default = \`${DEFAULT_TYPE}\` = \`${finalJarFor(DEFAULT_TYPE)}\` で upload)`,
               '',
               '### 2. Close this issue',
               '→ `cf-upload.yml` workflow が起動 → 必要なら再 build → CF アップロード',
