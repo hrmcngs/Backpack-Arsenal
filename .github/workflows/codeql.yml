@@ -1,0 +1,63 @@
+name: CodeQL
+
+# Advanced setup の CodeQL workflow。
+# Default setup の自動構成は `security-events: write` を確実に得られないケースがあり、
+# 「Requires authentication / Please check that your token has security-events: write」
+# で SARIF upload に失敗してきた。 ここで明示的に permissions を宣言して回避。
+#
+# 切り替え手順 (リポ管理者):
+#   1. https://github.com/<owner>/<repo>/settings/security_analysis
+#   2. Code scanning → CodeQL analysis → Configure → Switch to advanced
+#   3. （UI が「Disable default setup」を促すので Disable）
+#   4. このファイルが GitHub によって認識され、 通常の workflow として動く
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # 毎週日曜 00:00 UTC に再 scan (CodeQL の DB / ルール更新を反映)
+    - cron: '0 0 * * 0'
+
+permissions:
+  actions: read
+  contents: read
+  # ↓ これが default setup で確実に得られない権限。 advanced setup なら明示でき確実。
+  security-events: write
+  packages: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # Forge mod なので Java/Kotlin と workflow YAML をスキャン。
+        # python は対象ファイル無し、 actions analyzer は 401 issue 報告中のため一旦除外。
+        language: ['java-kotlin']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          # ForgeGradle 6 の autobuild は MCP セットアップが必要で重い & 不安定。
+          # build-mode: none で classpath 推測 + bytecode 解析 (default setup と同じ)。
+          # 多少精度が落ちる代わり起動が早く CI 失敗が減る。
+          build-mode: none
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
