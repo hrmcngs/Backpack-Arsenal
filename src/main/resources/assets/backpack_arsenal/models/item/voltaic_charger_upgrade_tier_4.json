@@ -1,0 +1,6 @@
+{
+  "parent": "item/generated",
+  "textures": {
+    "layer0": "backpack_arsenal:item/voltaic_charger_upgrade_tier_4"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "replace": false,
+  "values": [
+    "backpack_arsenal:voltaic_charger_upgrade",
+    "backpack_arsenal:voltaic_charger_upgrade_tier_1",
+    "backpack_arsenal:voltaic_charger_upgrade_tier_2",
+    "backpack_arsenal:voltaic_charger_upgrade_tier_3",
+    "backpack_arsenal:voltaic_charger_upgrade_tier_4",
+    "backpack_arsenal:voltaic_charger_upgrade_tier_5"
+  ]
+}

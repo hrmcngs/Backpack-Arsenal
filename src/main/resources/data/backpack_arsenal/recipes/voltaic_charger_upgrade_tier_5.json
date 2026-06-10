@@ -1,0 +1,8 @@
+{
+  "_comment": "tier 5 = tier 4 + netherite block (smithing table)。 寄与 +25 → +36。 template はバニラの netherite_upgrade_smithing_template を流用 (テーマ的にも合致)。",
+  "type": "minecraft:smithing_transform",
+  "template": { "item": "minecraft:netherite_upgrade_smithing_template" },
+  "base": { "item": "backpack_arsenal:voltaic_charger_upgrade_tier_4" },
+  "addition": { "item": "minecraft:netherite_block" },
+  "result": { "item": "backpack_arsenal:voltaic_charger_upgrade_tier_5" }
+}

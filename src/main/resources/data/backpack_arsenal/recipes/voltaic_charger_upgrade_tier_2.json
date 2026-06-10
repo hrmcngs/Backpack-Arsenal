@@ -1,0 +1,19 @@
+{
+  "_comment": "tier 2 = tier 1 + iron block 8 (3x3 囲み)。 寄与 +4 → +9。",
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "group": "voltaic_charger_upgrade",
+  "pattern": [
+    "BBB",
+    "BTB",
+    "BBB"
+  ],
+  "key": {
+    "T": { "item": "backpack_arsenal:voltaic_charger_upgrade_tier_1" },
+    "B": { "item": "minecraft:iron_block" }
+  },
+  "result": {
+    "item": "backpack_arsenal:voltaic_charger_upgrade_tier_2",
+    "count": 1
+  }
+}

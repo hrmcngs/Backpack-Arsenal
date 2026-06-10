@@ -1,0 +1,19 @@
+{
+  "_comment": "tier 1 = base + copper block 8 (3x3 囲み)。 寄与 +1 → +4。",
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "group": "voltaic_charger_upgrade",
+  "pattern": [
+    "BBB",
+    "BTB",
+    "BBB"
+  ],
+  "key": {
+    "T": { "item": "backpack_arsenal:voltaic_charger_upgrade" },
+    "B": { "item": "minecraft:copper_block" }
+  },
+  "result": {
+    "item": "backpack_arsenal:voltaic_charger_upgrade_tier_1",
+    "count": 1
+  }
+}

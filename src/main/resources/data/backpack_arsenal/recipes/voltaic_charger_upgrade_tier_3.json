@@ -1,0 +1,19 @@
+{
+  "_comment": "tier 3 = tier 2 + gold block 8 (3x3 囲み)。 寄与 +9 → +16。",
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "group": "voltaic_charger_upgrade",
+  "pattern": [
+    "BBB",
+    "BTB",
+    "BBB"
+  ],
+  "key": {
+    "T": { "item": "backpack_arsenal:voltaic_charger_upgrade_tier_2" },
+    "B": { "item": "minecraft:gold_block" }
+  },
+  "result": {
+    "item": "backpack_arsenal:voltaic_charger_upgrade_tier_3",
+    "count": 1
+  }
+}

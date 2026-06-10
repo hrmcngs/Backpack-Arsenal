@@ -1,6 +1,8 @@
 {
-  "_comment": "Voltaic Charger Upgrade — 電気回路カード風レシピ。amethyst (電気) + copper (導電) + redstone (信号) + leather (カード基板)。",
+  "_comment": "Voltaic Charger Upgrade base — 電気回路カード風。amethyst (電気) + copper (導電) + redstone (信号) + leather (カード基板)。group で JEI が tier 1〜4 と同タブにまとめる。",
   "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "group": "voltaic_charger_upgrade",
   "pattern": [
     "RAR",
     "LCL",

@@ -52,7 +52,7 @@ public class BackpackChargingHandler {
         // 毎 tick 呼んでも spam しない。
         backpackarsenal.util.BackpackScanner.forEachAnyBackpack(player, stack -> {
             if (isChargeTick) {
-                int multiplier = 1 + countVoltaicChargerUpgrades(stack);
+                int multiplier = 1 + sumVoltaicChargerContributions(stack);
                 chargeAllKatanasInside(stack, baseCharge * multiplier);
             }
             if (backpackarsenal.util.BackpackScanner.isArsenalBackpack(stack)) {
@@ -61,68 +61,34 @@ public class BackpackChargingHandler {
         });
     }
 
-    /** countVoltaicChargerUpgrades の診断ログを一定間隔で出すための tick counter */
-    private static int debugLogTick = 0;
-
     /**
-     * backpack 内の有効な VoltaicChargerUpgrade 枚数。
+     * backpack 内の有効な VoltaicChargerUpgrade の倍率寄与合計。
      *
-     * SB の {@code IUpgradeHandler.getTypeWrappers(UpgradeType)} を使う。 これは内部で
-     * {@code typeWrappers Map<UpgradeType, List<IUpgradeWrapper>>} を引くので、
-     * instanceof で全 slot を走査するより速くて確実。
-     *
-     * 「機能していない」ケースの切り分けに、 type 別の wrapper 種類も診断ログに出す。
+     * 全 tier (base 〜 tier 4) は同じ {@code UpgradeType} を共有してるので
+     * {@code getTypeWrappers(TYPE)} 1回で全部取れる。 各 wrapper の
+     * {@link backpackarsenal.upgrade.VoltaicChargerUpgradeItem.Wrapper#getMultiplierContribution()}
+     * = (tier+1)^2 を合計する。
      */
-    private static int countVoltaicChargerUpgrades(ItemStack backpackStack) {
+    private static int sumVoltaicChargerContributions(ItemStack backpackStack) {
         var capOpt = backpackStack.getCapability(
             net.p3pp3rf1y.sophisticatedbackpacks.api.CapabilityBackpackWrapper.getCapabilityInstance());
-        if (!capOpt.isPresent()) {
-            maybeLog("no IBackpackWrapper cap on stack={}", backpackStack);
-            return 0;
-        }
-        int[] count = {0};
+        if (!capOpt.isPresent()) return 0;
+        int[] sum = {0};
         capOpt.ifPresent(wrapper -> {
             try {
-                var upgradeHandler = wrapper.getUpgradeHandler();
-
-                // 主経路: getTypeWrappers で TYPE から直接引く
-                java.util.List<backpackarsenal.upgrade.VoltaicChargerUpgradeItem.Wrapper> matched =
-                    upgradeHandler.getTypeWrappers(
-                        backpackarsenal.upgrade.VoltaicChargerUpgradeItem.TYPE);
-                int enabled = 0;
+                var matched = wrapper.getUpgradeHandler().getTypeWrappers(
+                    backpackarsenal.upgrade.VoltaicChargerUpgradeItem.TYPE);
+                int s = 0;
                 for (var w : matched) {
-                    if (w != null && w.isEnabled()) enabled++;
+                    if (w != null && w.isEnabled()) s += w.getMultiplierContribution();
                 }
-                count[0] = enabled;
-
-                // 診断: getSlotWrappers の全 entry も併せてダンプして、 SB が我々の
-                // item を VoltaicChargerUpgradeItem.Wrapper として認識してるかを確認可能に。
-                var allSlots = upgradeHandler.getSlotWrappers();
-                if (!allSlots.isEmpty()) {
-                    StringBuilder sb = new StringBuilder();
-                    allSlots.forEach((slot, w) -> {
-                        sb.append(slot).append("=");
-                        sb.append(w == null ? "null"
-                            : w.getClass().getSimpleName() + (w.isEnabled() ? "" : "(disabled)"));
-                        sb.append(',');
-                    });
-                    maybeLog("upgradeHandler slots={} typeWrappers(VoltaicCharger)={} enabled={}",
-                        sb.toString(), matched.size(), enabled);
-                }
+                sum[0] = s;
             } catch (Throwable t) {
                 BackpackArsenalMod.LOGGER.warn(
-                    "[backpack_arsenal] countVoltaicChargerUpgrades threw: {}", t.toString());
+                    "[backpack_arsenal] sumVoltaicChargerContributions threw: {}", t.toString());
             }
         });
-        return count[0];
-    }
-
-    /** 5 秒に 1 回程度ログ出力 (毎 tick だとログが溢れるので throttle) */
-    private static void maybeLog(String fmt, Object... args) {
-        debugLogTick++;
-        if (debugLogTick % 10 == 0) {  // 10回呼ばれるごと = scan interval 10t * 10 = 100t = 5秒
-            BackpackArsenalMod.LOGGER.info("[backpack_arsenal] " + fmt, args);
-        }
+        return sum[0];
     }
 
     /** バックパックの中身を走査して VoltaicBlade を充電する。

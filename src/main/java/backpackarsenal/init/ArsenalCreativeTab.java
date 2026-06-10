@@ -30,6 +30,11 @@ public class ArsenalCreativeTab {
                 output.accept(ArsenalItems.ARSENAL_BACKPACK_ELECTRON.get());
                 output.accept(ArsenalItems.BASIC_BACKPACK.get());
                 output.accept(ArsenalItems.VOLTAIC_CHARGER_UPGRADE.get());
+                output.accept(ArsenalItems.VOLTAIC_CHARGER_UPGRADE_TIER_1.get());
+                output.accept(ArsenalItems.VOLTAIC_CHARGER_UPGRADE_TIER_2.get());
+                output.accept(ArsenalItems.VOLTAIC_CHARGER_UPGRADE_TIER_3.get());
+                output.accept(ArsenalItems.VOLTAIC_CHARGER_UPGRADE_TIER_4.get());
+                output.accept(ArsenalItems.VOLTAIC_CHARGER_UPGRADE_TIER_5.get());
             })
             .build()
     );

@@ -26,10 +26,20 @@ public class ArsenalItems {
     public static final RegistryObject<Item> ARSENAL_BACKPACK_ELECTRON =
         REGISTRY.register("arsenal_backpack_electron", ArsenalBackpackItem::new);
 
-    /** Voltaic Charger Upgrade — backpack のアップグレードスロットに挿すと voltaic_blade
-     *  の充電速度が枚数だけ倍率アップ (1枚=2倍、2枚=3倍...) */
-    public static final RegistryObject<Item> VOLTAIC_CHARGER_UPGRADE =
-        REGISTRY.register("voltaic_charger_upgrade", VoltaicChargerUpgradeItem::new);
+    /** Voltaic Charger Upgrade tier 0 (base). 寄与 +1 (1枚で multiplier=2)。
+     *  上位 tier は {@link #VOLTAIC_CHARGER_UPGRADE_TIER_1} 〜 {@link #VOLTAIC_CHARGER_UPGRADE_TIER_4}。 */
+    public static final RegistryObject<VoltaicChargerUpgradeItem> VOLTAIC_CHARGER_UPGRADE =
+        REGISTRY.register("voltaic_charger_upgrade", () -> new VoltaicChargerUpgradeItem(0));
+    public static final RegistryObject<VoltaicChargerUpgradeItem> VOLTAIC_CHARGER_UPGRADE_TIER_1 =
+        REGISTRY.register("voltaic_charger_upgrade_tier_1", () -> new VoltaicChargerUpgradeItem(1));
+    public static final RegistryObject<VoltaicChargerUpgradeItem> VOLTAIC_CHARGER_UPGRADE_TIER_2 =
+        REGISTRY.register("voltaic_charger_upgrade_tier_2", () -> new VoltaicChargerUpgradeItem(2));
+    public static final RegistryObject<VoltaicChargerUpgradeItem> VOLTAIC_CHARGER_UPGRADE_TIER_3 =
+        REGISTRY.register("voltaic_charger_upgrade_tier_3", () -> new VoltaicChargerUpgradeItem(3));
+    public static final RegistryObject<VoltaicChargerUpgradeItem> VOLTAIC_CHARGER_UPGRADE_TIER_4 =
+        REGISTRY.register("voltaic_charger_upgrade_tier_4", () -> new VoltaicChargerUpgradeItem(4));
+    public static final RegistryObject<VoltaicChargerUpgradeItem> VOLTAIC_CHARGER_UPGRADE_TIER_5 =
+        REGISTRY.register("voltaic_charger_upgrade_tier_5", () -> new VoltaicChargerUpgradeItem(5));
 
     /** Basic Backpack — 充電機能なしの普通のバックパック。
      *  SB の BackpackItem をそのまま使う (subclass 無し)。
