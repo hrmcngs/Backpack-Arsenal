@@ -1,0 +1,20 @@
+{
+  "_comment": "Capacitor I — battery cell 形 (redstone=電力、copper=導体、iron=ケース)。 +256/use。",
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "group": "voltaic_capacitor_upgrade",
+  "pattern": [
+    "RCR",
+    "CIC",
+    "RCR"
+  ],
+  "key": {
+    "R": { "item": "minecraft:redstone" },
+    "C": { "item": "minecraft:copper_ingot" },
+    "I": { "item": "minecraft:iron_ingot" }
+  },
+  "result": {
+    "item": "backpack_arsenal:voltaic_capacitor_upgrade_i",
+    "count": 1
+  }
+}

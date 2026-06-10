@@ -58,6 +58,18 @@ public class BackpackArsenalMod {
             net.minecraft.world.item.ItemDisplayContext.FIXED
         );
 
+    /** バニラチェスト防具スロット (= {@link backpackarsenal.client.render.ChestBackpackLayer}) 用の
+     *  display context。 saya / backpack の JSON で {@code display.backpack_arsenal:chestplate}
+     *  が編集できる。 fallback は FIXED — 未設定の JSON は item frame と共通の transform を使う。
+     *  実 render では {@link backpackarsenal.client.render.SafeTransformBakedModel} で wrap して
+     *  AIOOBE を避ける。 */
+    public static final net.minecraft.world.item.ItemDisplayContext CHESTPLATE_CONTEXT =
+        net.minecraft.world.item.ItemDisplayContext.create(
+            "BACKPACK_ARSENAL_CHESTPLATE",
+            new net.minecraft.resources.ResourceLocation(MODID, "chestplate"),
+            net.minecraft.world.item.ItemDisplayContext.FIXED
+        );
+
     public BackpackArsenalMod() {
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
 
@@ -68,6 +80,7 @@ public class BackpackArsenalMod {
         backpackarsenal.init.ArsenalBlocks.REGISTRY.register(modBus);
         backpackarsenal.init.ArsenalMenuTypes.REGISTRY.register(modBus);
         backpackarsenal.init.ArsenalCreativeTab.REGISTRY.register(modBus);
+        backpackarsenal.init.ArsenalRecipes.REGISTRY.register(modBus);
         modBus.addListener(this::onCommonSetup);
         modBus.addListener(this::onClientSetup);
 

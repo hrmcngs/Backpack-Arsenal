@@ -33,21 +33,12 @@ public class ChestBackpackLayer<T extends AbstractClientPlayer, M extends Humano
         extends RenderLayer<T, M> {
 
     /** バニラチェスト防具スロット装着時の display context。
+     *  JSON 側で {@code display.backpack_arsenal:chestplate} を編集すると反映される。
+     *  fallback は FIXED ({@link BackpackArsenalMod#CHESTPLATE_CONTEXT} の create() 第 3 引数)。
      *
-     * ⚠ もとは {@code ItemDisplayContext.create("BACKPACK_ARSENAL_CHESTPLATE", ...)} の
-     * カスタム context を使っていたが、 Forge 1.20.1 では vanilla ItemTransforms.getTransform
-     * (の synthetic switch table) がカスタム ordinal で AIOOBE を起こす経路がある:
-     *   java.lang.ArrayIndexOutOfBoundsException: Index 13 out of bounds for length 13
-     *     at ItemTransforms.getTransform(ItemTransforms.java:63)
-     *     at IForgeBakedModel.applyTransform
-     *     at ItemRenderer.render
-     *     at ChestBackpackLayer.render
-     *
-     * クリエイティブインベントリの player preview を開いた瞬間にクラッシュするため、
-     * 安全策として vanilla FIXED を流用する。 これで JSON 側は {@code display.fixed} が
-     * 適用される (アイテムフレーム表示と共有する形になるが crash しない)。 saya 側も
-     * 同じ理由で FIXED を渡す。 後で Forge 側の patch / 別経路が判明したら戻せる。 */
-    public static final ItemDisplayContext CHESTPLATE_CONTEXT = ItemDisplayContext.FIXED;
+     *  ⚠ 過去 AIOOBE で FIXED 直流用していたが、 {@link SafeTransformBakedModel} で
+     *  applyTransform を override して moddedTransforms を直接読むことで安全化。 */
+    public static final ItemDisplayContext CHESTPLATE_CONTEXT = BackpackArsenalMod.CHESTPLATE_CONTEXT;
 
     /** 初回描画ログ用フラグ。 RenderLayer が想定通り呼ばれているか切り分けるため。 */
     private static boolean diagLogged = false;
@@ -93,7 +84,9 @@ public class ChestBackpackLayer<T extends AbstractClientPlayer, M extends Humano
             // 完全埋没を防ぐ最低限の前進を入れておく。
             poseStack.translate(0.0, -0.25, -0.32);
 
-            // backpack 本体描画
+            // backpack 本体描画 (SafeTransformBakedModel で wrap して AIOOBE 完全回避)
+            var bakedModel = Minecraft.getInstance().getItemRenderer().getModel(
+                chestStack, player.level(), player, 0);
             Minecraft.getInstance().getItemRenderer().render(
                 chestStack,
                 CHESTPLATE_CONTEXT,
@@ -102,8 +95,7 @@ public class ChestBackpackLayer<T extends AbstractClientPlayer, M extends Humano
                 bufferSource,
                 packedLight,
                 OverlayTexture.NO_OVERLAY,
-                Minecraft.getInstance().getItemRenderer().getModel(
-                    chestStack, player.level(), player, 0)
+                new SafeTransformBakedModel(bakedModel)
             );
 
             // saya overlay (同じ poseStack のまま、 saya 用 chestplate display 適用)

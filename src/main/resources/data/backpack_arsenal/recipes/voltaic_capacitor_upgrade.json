@@ -1,0 +1,19 @@
+{
+  "_comment": "Capacitor III (strongest) = Capacitor II + diamond_block 8 (3x3 囲み)。 +1024/use。 nether_star 等の入手難 mat は撤廃して charger upgrade tier 4 と同等の到達コストに統一。",
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "group": "voltaic_capacitor_upgrade",
+  "pattern": [
+    "BBB",
+    "BTB",
+    "BBB"
+  ],
+  "key": {
+    "T": { "item": "backpack_arsenal:voltaic_capacitor_upgrade_ii" },
+    "B": { "item": "minecraft:diamond_block" }
+  },
+  "result": {
+    "item": "backpack_arsenal:voltaic_capacitor_upgrade",
+    "count": 1
+  }
+}

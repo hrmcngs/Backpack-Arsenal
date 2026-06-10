@@ -55,11 +55,24 @@ public class VoltaicBladeItem extends SwordItem {
     public static final String TAG_CHARGE = "BackpackCharge";
     public static final String TAG_ELEMENT_TYPE = "ElementType";
     public static final String TAG_ELEMENT_LEVEL = "ElementLevel";
+    /** capacitor upgrade を適用した stage 配列 (LIFO)。 各 entry は +bonus 量 (256/512/1024)。
+     *  これで tier を区別したまま積めるので、 sneak+RC で 1 stage ずつ剥がせる。 */
+    public static final String TAG_CAPACITOR_STAGES = "CapacitorStages";
+    /** legacy (単一 tier 時代の) bonus 数。 migrate のためだけに残してある — 1.0.0 で書かれた
+     *  blade は読み込み時に TAG_CAPACITOR_STAGES へ変換される (各 entry = 1024)。 */
+    @Deprecated
+    public static final String TAG_CAPACITOR_BONUS = "CapacitorBonus";
 
     /** レアリティ未設定 / COMMON 時の基準値。getMaxCharge() の出発点。 */
     public static final int BASE_MAX_CHARGE = 1024;
     public static final int CHARGE_COST_PER_HIT = 200;
     public static final int CHARGE_PER_TICK_IN_BACKPACK = 2;
+    /** capacitor upgrade tier の bonus 値 (I=+256, II=+512, III=+1024)。 strongest = 1024。 */
+    public static final int CAPACITOR_TIER_I_BONUS  = 256;
+    public static final int CAPACITOR_TIER_II_BONUS = 512;
+    public static final int CAPACITOR_TIER_III_BONUS = 1024;
+    /** capacitor upgrade を適用できる最大 stage 数 (survival)。 creative は制限なし。 */
+    public static final int MAX_CAPACITOR_BONUS = 5;
     // 雷振り下ろし の数値は SlamDownSkillAction 側に定義 (MAW Skill Selection 経由でのみ発動)。
 
     public VoltaicBladeItem() {
@@ -85,6 +98,11 @@ public class VoltaicBladeItem extends SwordItem {
      * RarityForge でレアリティが上がると最大チャージも段階的に増える。
      */
     public static int getMaxCharge(ItemStack stack) {
+        return getRarityBaseMaxCharge(stack) + getCapacitorBonusTotal(stack);
+    }
+
+    /** rarity だけで決まる base max (capacitor bonus を含まない)。 内部用 + tooltip 表示用。 */
+    public static int getRarityBaseMaxCharge(ItemStack stack) {
         WeaponRarity rarity = WeaponRarity.getFromStack(stack);
         if (rarity == null) return BASE_MAX_CHARGE;
         switch (rarity) {
@@ -96,6 +114,48 @@ public class VoltaicBladeItem extends SwordItem {
             case COMMON:
             default:        return BASE_MAX_CHARGE;
         }
+    }
+
+    /** capacitor upgrade を適用した stage 配列 (LIFO)。 各 entry は +bonus 量。
+     *  legacy (1.0.0) NBT に {@link #TAG_CAPACITOR_BONUS} (int) が残ってる場合は読み取り時に
+     *  自動で N 個の +1024 stage 配列へ変換する (旧 = 全 tier III 扱い)。 */
+    public static int[] getCapacitorStages(ItemStack stack) {
+        CompoundTag tag = stack.getTag();
+        if (tag == null) return new int[0];
+        if (tag.contains(TAG_CAPACITOR_STAGES, net.minecraft.nbt.Tag.TAG_INT_ARRAY)) {
+            return tag.getIntArray(TAG_CAPACITOR_STAGES);
+        }
+        if (tag.contains(TAG_CAPACITOR_BONUS, net.minecraft.nbt.Tag.TAG_INT)) {
+            int legacy = Math.max(0, tag.getInt(TAG_CAPACITOR_BONUS));
+            int[] migrated = new int[legacy];
+            java.util.Arrays.fill(migrated, CAPACITOR_TIER_III_BONUS);
+            tag.remove(TAG_CAPACITOR_BONUS);
+            if (migrated.length > 0) tag.putIntArray(TAG_CAPACITOR_STAGES, migrated);
+            return migrated;
+        }
+        return new int[0];
+    }
+
+    /** 現在の stage 総 bonus 合計 (max charge への加算分)。 */
+    public static int getCapacitorBonusTotal(ItemStack stack) {
+        int sum = 0;
+        for (int v : getCapacitorStages(stack)) sum += v;
+        return sum;
+    }
+
+    public static int getCapacitorStageCount(ItemStack stack) {
+        return getCapacitorStages(stack).length;
+    }
+
+    /** stage 配列を直接書き込む。 空配列なら tag 削除。 anvil / peel-off 用。 */
+    public static void setCapacitorStages(ItemStack stack, int[] stages) {
+        CompoundTag tag = stack.getOrCreateTag();
+        if (stages.length == 0) {
+            tag.remove(TAG_CAPACITOR_STAGES);
+        } else {
+            tag.putIntArray(TAG_CAPACITOR_STAGES, stages);
+        }
+        tag.remove(TAG_CAPACITOR_BONUS); // legacy 残骸を清掃
     }
 
     public static int getCharge(ItemStack stack) {
@@ -217,6 +277,17 @@ public class VoltaicBladeItem extends SwordItem {
                 "item.backpack_arsenal.voltaic_blade.charge_tooltip",
                 charge, max
         ).withStyle(ChatFormatting.AQUA));
+        int stageCount = getCapacitorStageCount(stack);
+        if (stageCount > 0) {
+            int totalBonus = getCapacitorBonusTotal(stack);
+            tooltip.add(Component.translatable(
+                    "item.backpack_arsenal.voltaic_blade.capacitor_tooltip",
+                    stageCount, MAX_CAPACITOR_BONUS, totalBonus
+            ).withStyle(ChatFormatting.GOLD));
+            tooltip.add(Component.translatable(
+                    "item.backpack_arsenal.voltaic_blade.capacitor_peel_hint"
+            ).withStyle(ChatFormatting.DARK_GRAY));
+        }
         if (lv > 0) {
             tooltip.add(Component.translatable(
                     "item.backpack_arsenal.voltaic_blade.element_tooltip", lv

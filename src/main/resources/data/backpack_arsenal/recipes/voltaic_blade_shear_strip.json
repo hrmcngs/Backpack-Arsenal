@@ -1,0 +1,4 @@
+{
+  "_comment": "voltaic_blade + shears → stage + エンチャント全消し。 CustomRecipe で実装 (matches/assemble/getRemainingItems は backpackarsenal.recipe.VoltaicBladeShearStripRecipe)。",
+  "type": "backpack_arsenal:voltaic_blade_shear_strip"
+}

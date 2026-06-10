@@ -3,6 +3,7 @@ package backpackarsenal.init;
 import backpackarsenal.BackpackArsenalMod;
 import backpackarsenal.item.ArsenalBackpackItem;
 import backpackarsenal.item.VoltaicBladeItem;
+import backpackarsenal.item.VoltaicCapacitorUpgradeItem;
 import backpackarsenal.upgrade.VoltaicChargerUpgradeItem;
 import net.minecraft.world.item.Item;
 import net.minecraftforge.registries.DeferredRegister;
@@ -40,6 +41,19 @@ public class ArsenalItems {
         REGISTRY.register("voltaic_charger_upgrade_tier_4", () -> new VoltaicChargerUpgradeItem(4));
     public static final RegistryObject<VoltaicChargerUpgradeItem> VOLTAIC_CHARGER_UPGRADE_TIER_5 =
         REGISTRY.register("voltaic_charger_upgrade_tier_5", () -> new VoltaicChargerUpgradeItem(5));
+
+    /** Voltaic Capacitor Upgrade tier I (+256/use)。 一番安価。 */
+    public static final RegistryObject<VoltaicCapacitorUpgradeItem> VOLTAIC_CAPACITOR_UPGRADE_I =
+        REGISTRY.register("voltaic_capacitor_upgrade_i",
+            () -> new VoltaicCapacitorUpgradeItem(backpackarsenal.item.VoltaicBladeItem.CAPACITOR_TIER_I_BONUS));
+    /** Voltaic Capacitor Upgrade tier II (+512/use)。 */
+    public static final RegistryObject<VoltaicCapacitorUpgradeItem> VOLTAIC_CAPACITOR_UPGRADE_II =
+        REGISTRY.register("voltaic_capacitor_upgrade_ii",
+            () -> new VoltaicCapacitorUpgradeItem(backpackarsenal.item.VoltaicBladeItem.CAPACITOR_TIER_II_BONUS));
+    /** Voltaic Capacitor Upgrade tier III (+1024/use)。 strongest。 既存 ID を維持 (1.0.0 から残ってる物との互換)。 */
+    public static final RegistryObject<VoltaicCapacitorUpgradeItem> VOLTAIC_CAPACITOR_UPGRADE =
+        REGISTRY.register("voltaic_capacitor_upgrade",
+            () -> new VoltaicCapacitorUpgradeItem(backpackarsenal.item.VoltaicBladeItem.CAPACITOR_TIER_III_BONUS));
 
     /** Basic Backpack — 充電機能なしの普通のバックパック。
      *  SB の BackpackItem をそのまま使う (subclass 無し)。

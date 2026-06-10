@@ -1,0 +1,7 @@
+{
+  "_comment": "Voltaic Capacitor Upgrade III (strongest, +1024)。 registry id は voltaic_capacitor_upgrade のまま (世界互換のため) だが、 texture file は voltaic_capacitor_upgrade_iii.png を参照する。",
+  "parent": "item/generated",
+  "textures": {
+    "layer0": "backpack_arsenal:item/voltaic_capacitor_upgrade_iii"
+  }
+}

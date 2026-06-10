@@ -35,6 +35,9 @@ public class ArsenalCreativeTab {
                 output.accept(ArsenalItems.VOLTAIC_CHARGER_UPGRADE_TIER_3.get());
                 output.accept(ArsenalItems.VOLTAIC_CHARGER_UPGRADE_TIER_4.get());
                 output.accept(ArsenalItems.VOLTAIC_CHARGER_UPGRADE_TIER_5.get());
+                output.accept(ArsenalItems.VOLTAIC_CAPACITOR_UPGRADE_I.get());
+                output.accept(ArsenalItems.VOLTAIC_CAPACITOR_UPGRADE_II.get());
+                output.accept(ArsenalItems.VOLTAIC_CAPACITOR_UPGRADE.get());
             })
             .build()
     );

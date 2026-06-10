@@ -1,0 +1,7 @@
+{
+  "_comment": "Voltaic Capacitor Upgrade tier I — texture は後で差し替え可能。",
+  "parent": "item/generated",
+  "textures": {
+    "layer0": "backpack_arsenal:item/voltaic_capacitor_upgrade_i"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "_comment": "Capacitor II = Capacitor I + iron_block 8 (3x3 囲み)。 +512/use。",
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "group": "voltaic_capacitor_upgrade",
+  "pattern": [
+    "BBB",
+    "BTB",
+    "BBB"
+  ],
+  "key": {
+    "T": { "item": "backpack_arsenal:voltaic_capacitor_upgrade_i" },
+    "B": { "item": "minecraft:iron_block" }
+  },
+  "result": {
+    "item": "backpack_arsenal:voltaic_capacitor_upgrade_ii",
+    "count": 1
+  }
+}

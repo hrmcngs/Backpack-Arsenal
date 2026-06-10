@@ -153,6 +153,11 @@ public final class SayaBackpackOverlay {
 
         logDrawOnce(contextLabel + "/" + variantName, voltaicCount);
 
+        // chestplate context (= AIOOBE 経路) はカスタム ordinal 越え対策で safe wrapper 経由。
+        // worn / その他は ordinal が低い or moddedTransforms に必ず entry があるので素のまま。
+        BakedModel renderModel = (context == backpackarsenal.BackpackArsenalMod.CHESTPLATE_CONTEXT)
+            ? new SafeTransformBakedModel(model)
+            : model;
         ItemRenderer itemRenderer = Minecraft.getInstance().getItemRenderer();
         itemRenderer.render(
             backpackStack,
@@ -162,7 +167,7 @@ public final class SayaBackpackOverlay {
             bufferSource,
             packedLight,
             OverlayTexture.NO_OVERLAY,
-            model
+            renderModel
         );
     }
 
