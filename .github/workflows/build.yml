@@ -236,139 +236,104 @@ jobs:
       COMMIT_SHA: ${{ github.sha }}
       RUN_ID: ${{ github.run_id }}
     steps:
-      - name: 'Diagnostic: token validity check'
-        run: |
-          # token が REST API レベルで通るか確認 (GET /repos は issues:read で OK)。
-          HTTP=$(curl -sS -o /tmp/probe.json -w "%{http_code}" \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/$GH_REPO")
-          echo "::notice::repo probe HTTP $HTTP"
-          if [ "$HTTP" != "200" ]; then
-            echo "::error::GITHUB_TOKEN can't even GET /repos — auth completely broken."
-            cat /tmp/probe.json | head -20
-            exit 1
-          fi
-          # issues:write の確認: ラベル一覧取得 (issues 系の最軽量 read)
-          HTTP=$(curl -sS -o /tmp/probe.json -w "%{http_code}" \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/$GH_REPO/labels?per_page=1")
-          echo "::notice::labels probe HTTP $HTTP"
-          if [ "$HTTP" != "200" ]; then
-            echo "::error::issues read denied — permissions block may not be granting issues:write"
-            cat /tmp/probe.json | head -20
-            exit 1
-          fi
-          echo "auth OK"
+      # actions/github-script は GITHUB_TOKEN を Octokit に直接渡してくれる純正 action。
+      # gh CLI や curl で 401 が出る環境でも、 こちらは正しく auth されるケースが多い。
+      - name: 'Create approval issue (github-script + Octokit)'
+        uses: actions/github-script@v7
+        env:
+          DEFAULT_TYPE: ${{ needs.resolve.outputs.release_type }}
+          JAR_NAME: ${{ needs.build.outputs.jar_name }}
+          MOD_VERSION: ${{ needs.build.outputs.mod_version }}
+          COMMIT_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+        with:
+          script: |
+            const { DEFAULT_TYPE, JAR_NAME, MOD_VERSION, COMMIT_SHA, RUN_ID } = process.env;
+            const shortSha = COMMIT_SHA.slice(0, 7);
+            const repoUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}`;
 
-      - name: 'Close any superseded approval issues'
-        run: |
-          # REST 直叩き (curl)。 gh CLI を介さない。
-          ISSUES=$(curl -sS \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/$GH_REPO/issues?labels=cf-approval-pending&state=open" \
-            | jq -r '.[].number' 2>/dev/null || echo "")
-          for NUM in $ISSUES; do
-            if [ -n "$NUM" ] && [ "$NUM" != "null" ]; then
-              curl -sS -X POST \
-                -H "Authorization: Bearer $GH_TOKEN" \
-                -H "Accept: application/vnd.github+json" \
-                "https://api.github.com/repos/$GH_REPO/issues/$NUM/comments" \
-                -d "{\"body\":\"Superseded by new push \`${COMMIT_SHA:0:7}\` (run #$RUN_ID)\"}" >/dev/null || true
-              curl -sS -X PATCH \
-                -H "Authorization: Bearer $GH_TOKEN" \
-                -H "Accept: application/vnd.github+json" \
-                "https://api.github.com/repos/$GH_REPO/issues/$NUM" \
-                -d '{"state":"closed","state_reason":"not_planned"}' >/dev/null || true
-              echo "closed superseded issue #$NUM"
-            fi
-          done
+            // ── 0. 必要なラベル を ensure (既存なら ignore) ──
+            const labels = [
+              { name: 'cf-approval-pending', color: 'FBCA04', description: 'Awaiting checkbox tick + close for CF upload' },
+              { name: 'cf-cancelled',        color: 'B60205', description: 'CF upload cancelled' },
+              { name: 'cf-uploaded',         color: '0E8A16', description: 'Uploaded to CurseForge' },
+              { name: 'cf-upload-failed',    color: 'B60205', description: 'CurseForge upload failed' },
+              { name: 'cf-test-only',        color: 'BFDADC', description: 'Approved as test, no upload' },
+            ];
+            for (const l of labels) {
+              try {
+                await github.rest.issues.createLabel({ owner: context.repo.owner, repo: context.repo.repo, ...l });
+                core.info(`label created: ${l.name}`);
+              } catch (e) {
+                if (e.status !== 422) throw e; // 422 = already exists
+              }
+            }
 
-      - name: 'Ensure labels exist'
-        run: |
-          create_label() {
-            local NAME=$1; local COLOR=$2; local DESC=$3
-            curl -sS -X POST \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/$GH_REPO/labels" \
-              -d "{\"name\":\"$NAME\",\"color\":\"$COLOR\",\"description\":\"$DESC\"}" >/dev/null || true
-          }
-          create_label "cf-approval-pending" "FBCA04" "Awaiting checkbox tick + close for CF upload"
-          create_label "cf-cancelled"        "B60205" "CF upload cancelled"
-          create_label "cf-uploaded"         "0E8A16" "Uploaded to CurseForge"
-          create_label "cf-upload-failed"    "B60205" "CurseForge upload failed"
-          create_label "cf-test-only"        "BFDADC" "Approved as test, no upload"
+            // ── 1. 既存の pending issue を全部 close (= 最新 push だけ生かす) ──
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              labels: 'cf-approval-pending', state: 'open', per_page: 100,
+            });
+            for (const iss of existing.data) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo, issue_number: iss.number,
+                body: `Superseded by new push \`${shortSha}\` (run #${RUN_ID})`,
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner, repo: context.repo.repo, issue_number: iss.number,
+                state: 'closed', state_reason: 'not_planned',
+              });
+              core.info(`closed superseded issue #${iss.number}`);
+            }
 
-      - name: 'Create approval issue with checkbox'
-        run: |
-          # 末尾に SHA / RUN_ID / DEFAULT_TYPE を metadata footer として埋め込む
-          # (cf-upload.yml がそれを parse して使う)
-          cat > /tmp/body.md <<EOF
-          ## CurseForge Upload Approval
+            // ── 2. 新規 issue 作成 ──
+            const body = [
+              '## CurseForge Upload Approval',
+              '',
+              '| Field | Value |',
+              '|---|---|',
+              `| jar           | \`${JAR_NAME}\` |`,
+              `| mod version   | \`${MOD_VERSION}\` |`,
+              `| commit        | \`${shortSha}\` |`,
+              `| default type  | **${DEFAULT_TYPE}** |`,
+              `| build run     | [#${RUN_ID}](${repoUrl}/actions/runs/${RUN_ID}) |`,
+              '',
+              '### 1. Tick ONE release type:',
+              '- [ ] **alpha** — CurseForge alpha',
+              '- [ ] **beta** — CurseForge beta',
+              '- [ ] **release** — CurseForge release (suffix なし jar)',
+              '- [ ] **test** — build はするが CF にはアップしない (jar artifact のみ)',
+              '',
+              `(どれも tick しなかった場合は default = \`${DEFAULT_TYPE}\` で upload)`,
+              '',
+              '### 2. Close this issue',
+              '→ `cf-upload.yml` workflow が起動 → 必要なら再 build → CF アップロード',
+              '',
+              '### キャンセル',
+              'このまま 何も tick せず close + `cf-cancelled` label を付ければ skip。',
+              '',
+              '---',
+              '<!-- BACKPACK_ARSENAL_METADATA',
+              `sha=${COMMIT_SHA}`,
+              `run_id=${RUN_ID}`,
+              `default_type=${DEFAULT_TYPE}`,
+              `jar_name=${JAR_NAME}`,
+              `mod_version=${MOD_VERSION}`,
+              '-->',
+            ].join('\n');
 
-          | Field | Value |
-          |---|---|
-          | jar           | \`${JAR_NAME}\` |
-          | mod version   | \`${MOD_VERSION}\` |
-          | commit        | \`${COMMIT_SHA:0:7}\` |
-          | default type  | **${DEFAULT_TYPE}** |
-          | build run     | [#${RUN_ID}](https://github.com/${{ github.repository }}/actions/runs/${RUN_ID}) |
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `CF approval: ${JAR_NAME} (\`${shortSha}\`)`,
+              body,
+              labels: ['cf-approval-pending'],
+            });
 
-          ### 1. Tick ONE release type:
-          - [ ] **alpha** — CurseForge alpha
-          - [ ] **beta** — CurseForge beta
-          - [ ] **release** — CurseForge release (suffix なし jar)
-          - [ ] **test** — build はするが CF にはアップしない (jar artifact のみ)
-
-          (どれも tick しなかった場合は default = \`${DEFAULT_TYPE}\` で upload)
-
-          ### 2. Close this issue
-          → \`cf-upload.yml\` workflow が起動 → 必要なら再 build → CF アップロード
-
-          ### キャンセル
-          このまま 何も tick せず close + \`cf-cancelled\` label を付ければ skip。
-
-          ---
-          <!-- BACKPACK_ARSENAL_METADATA
-          sha=${COMMIT_SHA}
-          run_id=${RUN_ID}
-          default_type=${DEFAULT_TYPE}
-          jar_name=${JAR_NAME}
-          mod_version=${MOD_VERSION}
-          -->
-          EOF
-
-          # JSON body 組み立て (jq が改行/quote escape してくれる)
-          TITLE="CF approval: ${JAR_NAME} (\`${COMMIT_SHA:0:7}\`)"
-          PAYLOAD=$(jq -nc \
-            --arg title "$TITLE" \
-            --rawfile body /tmp/body.md \
-            '{title: $title, body: $body, labels: ["cf-approval-pending"]}')
-
-          # curl で REST 直叩き — gh CLI を一切経由しない (gh: Requires authentication 回避)
-          HTTP=$(curl -sS -o /tmp/issue.json -w "%{http_code}" -X POST \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/$GH_REPO/issues" \
-            -d "$PAYLOAD")
-          echo "POST /issues HTTP $HTTP"
-          if [ "$HTTP" != "201" ]; then
-            echo "::error::Issue creation failed HTTP $HTTP"
-            cat /tmp/issue.json | head -40
-            exit 1
-          fi
-          ISSUE_URL=$(jq -r '.html_url' /tmp/issue.json)
-          ISSUE_NUMBER=$(jq -r '.number' /tmp/issue.json)
-          echo "::notice::Approval issue created: #$ISSUE_NUMBER $ISSUE_URL"
-          {
-            echo "## Approval issue created"
-            echo ""
-            echo "[#$ISSUE_NUMBER]($ISSUE_URL)"
-            echo ""
-            echo "Tick a release type checkbox & close the issue to trigger upload."
-          } >> "$GITHUB_STEP_SUMMARY"
+            core.notice(`Approval issue created: #${issue.data.number} ${issue.data.html_url}`);
+            await core.summary
+              .addHeading('Approval issue created')
+              .addRaw(`[#${issue.data.number}](${issue.data.html_url})`)
+              .addBreak()
+              .addRaw('Tick a release type checkbox & close the issue to trigger upload.')
+              .write();

@@ -45,68 +45,72 @@ jobs:
       # ── checkbox + metadata footer を解析 ─────────────────────────────
       - name: 'Parse issue body for release_type / sha'
         id: parse
-        run: |
-          # curl で REST 直叩き (gh CLI 経由は 401 が出る環境がある)
-          BODY=$(curl -sS \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/$GH_REPO/issues/$ISSUE_NUMBER" \
-            | jq -r .body)
-          # metadata footer の SHA / run_id / default_type を抜く
-          SHA=$(echo "$BODY" | grep -E '^sha=' | head -1 | cut -d= -f2)
-          RUN_ID=$(echo "$BODY" | grep -E '^run_id=' | head -1 | cut -d= -f2)
-          DEFAULT_TYPE=$(echo "$BODY" | grep -E '^default_type=' | head -1 | cut -d= -f2)
-          MOD_VERSION=$(echo "$BODY" | grep -E '^mod_version=' | head -1 | cut -d= -f2)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNum = parseInt(process.env.ISSUE_NUMBER, 10);
+            const { data: issue } = await github.rest.issues.get({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: issueNum,
+            });
+            const body = issue.body || '';
 
-          # checkbox 解析: 先に来たもの優先 (release > beta > alpha > test の順で探す)
-          TYPE=""
-          if echo "$BODY" | grep -qiE '^- \[x\] \*\*release\*\*'; then TYPE=release
-          elif echo "$BODY" | grep -qiE '^- \[x\] \*\*beta\*\*'; then TYPE=beta
-          elif echo "$BODY" | grep -qiE '^- \[x\] \*\*alpha\*\*'; then TYPE=alpha
-          elif echo "$BODY" | grep -qiE '^- \[x\] \*\*test\*\*'; then TYPE=test
-          fi
-          if [ -z "$TYPE" ]; then
-            TYPE="$DEFAULT_TYPE"
-            echo "::notice::no checkbox ticked → using default_type=$TYPE"
-          else
-            echo "::notice::release_type from checkbox: $TYPE"
-          fi
+            // metadata footer
+            const grab = (k) => {
+              const m = body.match(new RegExp(`^${k}=(.+)$`, 'm'));
+              return m ? m[1].trim() : '';
+            };
+            const sha = grab('sha');
+            const run_id = grab('run_id');
+            const default_type = grab('default_type');
+            const mod_version = grab('mod_version');
 
-          echo "release_type=$TYPE" >> $GITHUB_OUTPUT
-          echo "sha=$SHA" >> $GITHUB_OUTPUT
-          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
-          echo "mod_version=$MOD_VERSION" >> $GITHUB_OUTPUT
+            // checkbox 解析 (release > beta > alpha > test 順、 先に hit したのを採用)
+            let type = '';
+            const checks = ['release', 'beta', 'alpha', 'test'];
+            for (const t of checks) {
+              const re = new RegExp(`^- \\[x\\] \\*\\*${t}\\*\\*`, 'mi');
+              if (re.test(body)) { type = t; break; }
+            }
+            if (!type) {
+              type = default_type;
+              core.notice(`no checkbox ticked → default_type=${type}`);
+            } else {
+              core.notice(`release_type from checkbox: ${type}`);
+            }
 
-          {
-            echo "## CurseForge upload from approval issue #$ISSUE_NUMBER"
-            echo ""
-            echo "| Field | Value |"
-            echo "|---|---|"
-            echo "| release_type | \`$TYPE\` |"
-            echo "| sha          | \`${SHA:0:7}\` |"
-            echo "| mod_version  | \`$MOD_VERSION\` |"
-            echo "| build run    | [#$RUN_ID](https://github.com/${{ github.repository }}/actions/runs/$RUN_ID) |"
-          } >> "$GITHUB_STEP_SUMMARY"
+            core.setOutput('release_type', type);
+            core.setOutput('sha', sha);
+            core.setOutput('run_id', run_id);
+            core.setOutput('mod_version', mod_version);
+
+            await core.summary
+              .addHeading(`CurseForge upload from approval issue #${issueNum}`)
+              .addTable([
+                [{ data: 'Field', header: true }, { data: 'Value', header: true }],
+                ['release_type', `\`${type}\``],
+                ['sha',          `\`${sha.slice(0,7)}\``],
+                ['mod_version',  `\`${mod_version}\``],
+                ['build run',    `[#${run_id}](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${run_id})`],
+              ])
+              .write();
 
       # ── test type: jar build せず skip ────────────────────────────────
       - name: 'Skip (release_type=test)'
         if: steps.parse.outputs.release_type == 'test'
-        run: |
-          curl -sS -X POST \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/$GH_REPO/issues/$ISSUE_NUMBER/comments" \
-            -d "{\"body\":\"✅ Approved as **test** — no CurseForge upload performed (build artifact already produced in run #${{ steps.parse.outputs.run_id }}).\"}" >/dev/null || true
-          curl -sS -X POST \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/$GH_REPO/issues/$ISSUE_NUMBER/labels" \
-            -d '{"labels":["cf-test-only"]}' >/dev/null || true
-          {
-            echo ""
-            echo "### test mode — no upload."
-          } >> "$GITHUB_STEP_SUMMARY"
-          exit 0
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNum = parseInt(process.env.ISSUE_NUMBER, 10);
+            const runId = "${{ steps.parse.outputs.run_id }}";
+            await github.rest.issues.createComment({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: issueNum,
+              body: `✅ Approved as **test** — no CurseForge upload performed (build artifact already produced in run #${runId}).`,
+            });
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: issueNum,
+              labels: ['cf-test-only'],
+            });
+            await core.summary.addHeading('test mode — no upload').write();
 
       # ── 通常 type: ビルド → CF アップロード ────────────────────────────
       - name: 'Checkout (at issue sha)'
@@ -202,6 +206,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: 'Upload to CurseForge'
+        id: cfupload
         if: steps.parse.outputs.release_type != 'test'
         run: |
           echo "::notice::POST $(basename $JAR_PATH) ($JAR_SIZE) as $RELEASE_TYPE ..."
@@ -212,60 +217,86 @@ jobs:
             -F "file=@$JAR_PATH" \
             "https://minecraft.curseforge.com/api/projects/$CF_PROJECT_ID/upload-file")
           echo "::notice::upload HTTP $HTTP"
+          echo "http_code=$HTTP" >> $GITHUB_OUTPUT
           if [ "$HTTP" != "200" ]; then
             echo "::error::CurseForge upload failed with HTTP $HTTP"
             cat response.json | head -40
-            curl -sS -X POST \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/$GH_REPO/issues/$ISSUE_NUMBER/comments" \
-              -d "{\"body\":\"❌ CurseForge upload failed (HTTP $HTTP). See run logs.\"}" >/dev/null || true
-            curl -sS -X POST \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/$GH_REPO/issues/$ISSUE_NUMBER/labels" \
-              -d '{"labels":["cf-upload-failed"]}' >/dev/null || true
-            curl -sS -X DELETE \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/$GH_REPO/issues/$ISSUE_NUMBER/labels/cf-approval-pending" >/dev/null || true
             exit 1
           fi
 
+      - name: 'Notify issue (upload failed)'
+        if: failure() && steps.parse.outputs.release_type != 'test' && steps.cfupload.conclusion == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNum = parseInt(process.env.ISSUE_NUMBER, 10);
+            const http = '${{ steps.cfupload.outputs.http_code }}';
+            await github.rest.issues.createComment({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: issueNum,
+              body: `❌ CurseForge upload failed (HTTP ${http}). See run logs.`,
+            });
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: issueNum,
+              labels: ['cf-upload-failed'],
+            });
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner, repo: context.repo.repo, issue_number: issueNum,
+                name: 'cf-approval-pending',
+              });
+            } catch (e) { if (e.status !== 404) throw e; }
+
       - name: 'Verify CurseForge response & notify issue'
-        if: steps.parse.outputs.release_type != 'test'
-        run: |
-          FILE_ID=$(jq -r '.id // empty' response.json 2>/dev/null || true)
-          if [ -z "$FILE_ID" ]; then
-            curl -sS -X POST \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/$GH_REPO/issues/$ISSUE_NUMBER/comments" \
-              -d "{\"body\":\"⚠ Upload returned HTTP 200 but no file id — check CurseForge manually.\"}" >/dev/null || true
-            exit 0
-          fi
-          CF_URL="https://www.curseforge.com/minecraft/mc-mods/arsenal-backpack/files/$FILE_ID"
-          BODY_JSON=$(jq -nc --arg b "✅ Uploaded as **$RELEASE_TYPE**: [\`$(basename $JAR_PATH)\` #$FILE_ID]($CF_URL)" '{body: $b}')
-          curl -sS -X POST \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/$GH_REPO/issues/$ISSUE_NUMBER/comments" \
-            -d "$BODY_JSON" >/dev/null || true
-          curl -sS -X POST \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/$GH_REPO/issues/$ISSUE_NUMBER/labels" \
-            -d '{"labels":["cf-uploaded"]}' >/dev/null || true
-          curl -sS -X DELETE \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/$GH_REPO/issues/$ISSUE_NUMBER/labels/cf-approval-pending" >/dev/null || true
-          {
-            echo ""
-            echo "### ✅ Uploaded"
-            echo ""
-            echo "- File: \`$(basename $JAR_PATH)\` ($JAR_SIZE)"
-            echo "- Release type: \`$RELEASE_TYPE\`"
-            echo "- CurseForge file: [#$FILE_ID]($CF_URL)"
-          } >> "$GITHUB_STEP_SUMMARY"
-          echo "::notice::Uploaded as file #$FILE_ID → $CF_URL"
+        if: success() && steps.parse.outputs.release_type != 'test'
+        uses: actions/github-script@v7
+        env:
+          JAR_PATH: ${{ env.JAR_PATH }}
+          JAR_SIZE: ${{ env.JAR_SIZE }}
+          RELEASE_TYPE: ${{ env.RELEASE_TYPE }}
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const issueNum = parseInt(process.env.ISSUE_NUMBER, 10);
+            const { JAR_PATH, JAR_SIZE, RELEASE_TYPE } = process.env;
+            const jarName = path.basename(JAR_PATH);
+
+            let fileId = '';
+            try {
+              const resp = JSON.parse(fs.readFileSync('response.json', 'utf8'));
+              fileId = String(resp.id || '');
+            } catch (e) { /* ignore */ }
+
+            if (!fileId) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo, issue_number: issueNum,
+                body: `⚠ Upload returned HTTP 200 but no file id — check CurseForge manually.`,
+              });
+              return;
+            }
+
+            const cfUrl = `https://www.curseforge.com/minecraft/mc-mods/arsenal-backpack/files/${fileId}`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: issueNum,
+              body: `✅ Uploaded as **${RELEASE_TYPE}**: [\`${jarName}\` #${fileId}](${cfUrl})`,
+            });
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: issueNum,
+              labels: ['cf-uploaded'],
+            });
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner, repo: context.repo.repo, issue_number: issueNum,
+                name: 'cf-approval-pending',
+              });
+            } catch (e) { if (e.status !== 404) throw e; }
+
+            await core.summary
+              .addHeading('✅ Uploaded')
+              .addList([
+                `File: \`${jarName}\` (${JAR_SIZE})`,
+                `Release type: \`${RELEASE_TYPE}\``,
+                `CurseForge file: [#${fileId}](${cfUrl})`,
+              ])
+              .write();
+            core.notice(`Uploaded as file #${fileId} → ${cfUrl}`);
