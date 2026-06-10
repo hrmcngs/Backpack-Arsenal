@@ -100,7 +100,7 @@ jobs:
       # サブディレクトリ単位で固定し、restore-keys (部分一致復元) も廃止する。
       # cache key の "fg6-vN-" は壊れた既存キャッシュを破棄するための世代タグ。
       - name: Cache Gradle + Forge MCP
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.gradle/caches/modules-2
