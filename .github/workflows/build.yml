@@ -219,7 +219,12 @@ jobs:
   # → "1/5 …", "2/5 …" 形式で 進捗 % が視覚的にわかる。
   # $GITHUB_STEP_SUMMARY には Job ページ下部の Summary に進捗バー表示も追加。
   # ───────────────────────────────────────────────────────────────────
+  # ジョブ名に承認者向けヘルプを入れて、 承認時の comment 欄で release_type を override 可能に。
+  # 承認 comment に "release" / "beta" / "alpha" / "test" のどれかを書くと、
+  # その type で jar を再ビルドしてから CurseForge にアップロードする。
+  # comment が空 / 未対応キーワード → resolve job で決まった type (alpha が既定) のまま。
   curseforge_upload:
+    name: 'CurseForge upload (comment: release|beta|alpha|test to override)'
     needs: [resolve, build]
     if: needs.resolve.outputs.should_upload == 'true'
     runs-on: ubuntu-latest
@@ -270,6 +275,100 @@ jobs:
           echo "JAR_SIZE=$SIZE" >> "$GITHUB_ENV"
           echo "| 2/5 Download jar ($SIZE) | ✅ done |" >> "$GITHUB_STEP_SUMMARY"
           echo "::notice::▰▰▱▱▱ 40%  jar=$(basename $JAR) size=$SIZE"
+
+      # ── 承認 comment による release_type 上書き ──────────────────────────
+      # GitHub の Environment 承認画面の「comment」 欄に書いた文字列を query して、
+      # release / beta / alpha / test のキーワードを検出。 違う type が要求された場合は
+      # 再ビルドして jar を差し替える。 これで「checkbox」 相当の UX:
+      #   - 何も書かない    → そのまま (resolve job の決定 = 大抵 alpha)
+      #   - "release"     → 再ビルドで suffix 無しの release jar
+      #   - "beta"        → 再ビルドで -beta jar
+      #   - "alpha"       → 既定 alpha なら no-op
+      #   - "test"        → upload skip にしたいが既に approved 後なので、 type=test で
+      #                      ビルドした jar を CF に上げる (= test 名前 で alpha 同然)
+      - name: 'Override release_type from approval comment'
+        id: override
+        run: |
+          # この commit に紐付く curseforge deployment の最新 1 件 を query
+          DEP_ID=$(gh api "repos/${{ github.repository }}/deployments?environment=curseforge&sha=$COMMIT_SHA&per_page=1" \
+            --jq '.[0].id // empty' 2>/dev/null || echo "")
+          if [ -z "$DEP_ID" ]; then
+            echo "no deployment found for $COMMIT_SHA — skip override"
+            echo "needs_rebuild=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          # deployment status の description 全部に検査かける (最新 success の description が
+          # 承認時 comment のはず)
+          COMMENTS=$(gh api "repos/${{ github.repository }}/deployments/$DEP_ID/statuses?per_page=20" \
+            --jq '.[].description // empty' 2>/dev/null | grep -vE '^$' | tr '\n' ' ')
+          echo "approval comments: '$COMMENTS'"
+          OVERRIDE=""
+          if echo "$COMMENTS" | grep -qiE '(^|[^a-z])release([^a-z]|$)'; then OVERRIDE=release
+          elif echo "$COMMENTS" | grep -qiE '(^|[^a-z])beta([^a-z]|$)'; then OVERRIDE=beta
+          elif echo "$COMMENTS" | grep -qiE '(^|[^a-z])alpha([^a-z]|$)'; then OVERRIDE=alpha
+          elif echo "$COMMENTS" | grep -qiE '(^|[^a-z])test([^a-z]|$)'; then OVERRIDE=test
+          fi
+          if [ -n "$OVERRIDE" ] && [ "$OVERRIDE" != "$RELEASE_TYPE" ]; then
+            echo "::notice::release_type override via approval comment: $RELEASE_TYPE → $OVERRIDE"
+            echo "| 2.5 Approval comment override | ✅ $RELEASE_TYPE → $OVERRIDE (rebuild) |" >> "$GITHUB_STEP_SUMMARY"
+            echo "release_type=$OVERRIDE" >> $GITHUB_OUTPUT
+            echo "needs_rebuild=true" >> $GITHUB_OUTPUT
+          else
+            echo "::notice::no release_type override (comment='${COMMENTS}', current=$RELEASE_TYPE)"
+            echo "| 2.5 Approval comment override | ⇣ none ($RELEASE_TYPE kept) |" >> "$GITHUB_STEP_SUMMARY"
+            echo "needs_rebuild=false" >> $GITHUB_OUTPUT
+          fi
+
+      # rebuild 用の checkout + jdk + cache (override 時のみ)
+      - name: 'Checkout for rebuild'
+        if: steps.override.outputs.needs_rebuild == 'true'
+        uses: actions/checkout@v6
+
+      - name: 'JDK 17 for rebuild'
+        if: steps.override.outputs.needs_rebuild == 'true'
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 'Restore gradle cache for rebuild'
+        if: steps.override.outputs.needs_rebuild == 'true'
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/jars-9
+            ~/.gradle/caches/transforms-3
+            ~/.gradle/caches/forge_gradle
+            ~/.gradle/wrapper
+            build/createMcpToSrg
+            build/createSrgToMcp
+            build/extractSrg
+            build/downloadMCMeta
+            build/downloadMcpConfig
+          key: gradle-fg6-v3-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+
+      - name: 'Rebuild jar with overridden release_type'
+        if: steps.override.outputs.needs_rebuild == 'true'
+        env:
+          NEW_TYPE: ${{ steps.override.outputs.release_type }}
+        run: |
+          echo "::notice::rebuilding with -Prelease_type=$NEW_TYPE ..."
+          ./gradlew assemble -x test --no-daemon -Prelease_type="$NEW_TYPE"
+          NEW_JAR=$(ls build/libs/*.jar | grep -v sources | grep -v javadoc | head -1)
+          if [ ! -f "$NEW_JAR" ]; then
+            echo "::error::rebuild failed — no jar produced"
+            exit 1
+          fi
+          # 古い jar 入れ替え
+          rm -f dist/*.jar
+          cp "$NEW_JAR" dist/
+          NEW_SIZE=$(du -h "$NEW_JAR" | cut -f1)
+          # env 上書き (以降の step で新 jar / 新 type が使われる)
+          echo "JAR_PATH=dist/$(basename $NEW_JAR)" >> $GITHUB_ENV
+          echo "JAR_SIZE=$NEW_SIZE" >> $GITHUB_ENV
+          echo "RELEASE_TYPE=$NEW_TYPE" >> $GITHUB_ENV
+          echo "::notice::rebuilt: $(basename $NEW_JAR) ($NEW_SIZE) type=$NEW_TYPE"
 
       - name: '3/5 ▰▰▰▱▱ (60%)  Prepare metadata (auto-changelog)'
         run: |
