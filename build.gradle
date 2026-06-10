@@ -23,10 +23,76 @@ apply plugin: 'eclipse'
 // =====================================================================
 def cfCacheFile = file("${buildDir}/cf_latest_version.txt")
 def cfCachedVersion = cfCacheFile.exists() ? cfCacheFile.text.trim() : null
-version = (project.findProperty('mod_version_override')
+def baseResolvedVersion = (project.findProperty('mod_version_override')
         ?: cfCachedVersion
         ?: project.findProperty('mod_version')
         ?: '1.0.0')
+
+// =====================================================================
+// release type サフィックス決定:
+//   ./gradlew build を実行すると alpha / beta / release / test プロンプトが出る (対話モード)。
+//   - alpha   → "-alpha"  (CF alpha)
+//   - beta    → "-beta"   (CF beta)
+//   - release → ""         (CF release、 suffix 無し)
+//   - test    → "-test"   (ローカル jar 化のみ。 CI 側で should_upload=false に倒される)
+//
+//   プロンプト読み込みは Java の System.console() を優先、 null なら System.in 直読みに
+//   fallback (VSCode / IntelliJ の terminal でも動く)。 CI (GITHUB_ACTIONS=true) と
+//   -Prelease_type / -Pmod_version_override 指定時はプロンプトを skip して非対話。
+// =====================================================================
+ext.stripReleaseSuffix = { String v -> v?.replaceFirst(/-(alpha|beta|rc|test)(\.\d+)?$/, '') }
+ext.suffixForReleaseType = { String type ->
+    if (!type) return '-alpha'
+    def t = type.toLowerCase().trim()
+    if (t.startsWith('r')) return ''
+    if (t.startsWith('b')) return '-beta'
+    if (t.startsWith('t')) return '-test'
+    return '-alpha'
+}
+
+// stdin を 1 行読む。 console / InputStreamReader を順番に試す。 どちらも失敗なら null。
+ext.readLineFlexible = { ->
+    def console = System.console()
+    if (console != null) {
+        try { return console.readLine() } catch (Throwable ignored) {}
+    }
+    try {
+        def reader = new BufferedReader(new InputStreamReader(System.in))
+        return reader.readLine()
+    } catch (Throwable ignored) {
+        return null
+    }
+}
+
+def overrideReleaseType = project.findProperty('release_type')
+def isCi = System.getenv('CI') == 'true' || System.getenv('GITHUB_ACTIONS') == 'true'
+def shouldPrompt = !overrideReleaseType &&
+        !project.hasProperty('mod_version_override') &&
+        !isCi &&
+        gradle.startParameter.taskNames.any { it == 'build' || it.endsWith(':build') }
+
+def chosenReleaseType = null
+if (overrideReleaseType) {
+    chosenReleaseType = overrideReleaseType
+} else if (shouldPrompt) {
+    def base = stripReleaseSuffix(baseResolvedVersion)
+    print "\n[backpack-arsenal] Select release type for version ${base}:\n" +
+          "  [a]lpha    (default — CF alpha)\n" +
+          "  [b]eta     (CF beta)\n" +
+          "  [r]elease  (CF release, no suffix)\n" +
+          "  [t]est     (local jar only, NOT uploaded to CurseForge)\n" +
+          "  > "
+    System.out.flush()
+    def input = readLineFlexible()
+    chosenReleaseType = input?.trim() ? input.trim() : 'alpha'
+    logger.lifecycle("[backpack-arsenal] release_type=${chosenReleaseType} → version=${base}${suffixForReleaseType(chosenReleaseType)}")
+}
+
+if (chosenReleaseType) {
+    version = stripReleaseSuffix(baseResolvedVersion) + suffixForReleaseType(chosenReleaseType)
+} else {
+    version = baseResolvedVersion
+}
 group   = 'com.example.backpackarsenal'
 archivesBaseName = 'backpack-arsenal'
 
@@ -47,39 +113,80 @@ tasks.register('fetchCfVersion') {
     group = 'versioning'
     description = 'Fetch latest CurseForge version via cfwidget and cache it for the build.'
     doLast {
-        def url = 'https://api.cfwidget.com/minecraft/mc-mods/arsenal-backpack'
-        try {
-            def conn = new java.net.URL(url).openConnection()
-            conn.connectTimeout = 5000
-            conn.readTimeout = 10000
-            conn.setRequestProperty('User-Agent', 'backpack-arsenal-build')
-            def code = conn.responseCode
-            if (code != 200) {
-                logger.warn("[fetchCfVersion] cfwidget returned HTTP ${code} — keeping existing version.")
-                return
-            }
-            def json = new groovy.json.JsonSlurper().parse(conn.inputStream)
-            def files = json.files ?: []
-            if (files.isEmpty()) {
-                logger.warn("[fetchCfVersion] no files on CurseForge yet — keeping existing version.")
-                return
-            }
-            // files は upload 順 (新しい順)。display という名前のフィールドに
-            // 我々が指定した mod_version 文字列が入っている。
-            def latest = files[0].display ?: files[0].name ?: files[0].version
-            if (!latest) {
-                logger.warn("[fetchCfVersion] couldn't parse version field from cfwidget — keeping existing.")
-                return
-            }
-            cfCacheFile.parentFile.mkdirs()
-            cfCacheFile.text = latest.toString().trim()
-            logger.lifecycle("[fetchCfVersion] cached CurseForge version: ${latest}")
-            logger.lifecycle("[fetchCfVersion]   → next build will use version=${latest}")
-            logger.lifecycle("[fetchCfVersion]   bump?  edit gradle.properties (mod_version=) or pass -Pmod_version_override=X.Y.Z")
-        } catch (Throwable t) {
-            logger.warn("[fetchCfVersion] failed to fetch from cfwidget: ${t.message} — keeping existing version.")
-        }
+        def latest = fetchCfLatestVersion()
+        if (latest == null) return
+        cfCacheFile.parentFile.mkdirs()
+        cfCacheFile.text = latest.trim()
+        logger.lifecycle("[fetchCfVersion] cached CurseForge version: ${latest}")
+        logger.lifecycle("[fetchCfVersion]   → next build will use version=${latest}")
+        logger.lifecycle("[fetchCfVersion]   bump?  ./gradlew bumpCfVersion  or  edit gradle.properties")
     }
+}
+
+// =====================================================================
+// bumpCfVersion — CF 最新 + patch+1 を cache に書き込む。 CI で release 時に
+// 自動的に「CurseForge にある最新の 1 個上」 を採用する用途。 例:
+//   CF latest = "1.0.0-alpha" → cache = "1.0.1-alpha"
+//   CF latest = "1.2.3"        → cache = "1.2.4"
+//   CF latest = "2.0.0-beta.3" → cache = "2.0.1-beta.3"
+// 末尾の suffix (-alpha 等) は保ったまま、 数字の最後の segment を +1 する。
+// 失敗時 (network / parse) は cache 更新せず gradle.properties が引き続き使われる。
+// =====================================================================
+tasks.register('bumpCfVersion') {
+    group = 'versioning'
+    description = 'Fetch latest CurseForge version, bump patch by 1, cache for the next build.'
+    doLast {
+        def latest = fetchCfLatestVersion()
+        if (latest == null) return
+        def bumped = bumpPatch(latest.trim())
+        cfCacheFile.parentFile.mkdirs()
+        cfCacheFile.text = bumped
+        logger.lifecycle("[bumpCfVersion] CF latest=${latest} → bumped=${bumped}")
+        logger.lifecycle("[bumpCfVersion]   → next build will use version=${bumped}")
+    }
+}
+
+// cfwidget から CF 最新バージョン文字列を取得。 失敗時 null。
+ext.fetchCfLatestVersion = { ->
+    def url = 'https://api.cfwidget.com/minecraft/mc-mods/arsenal-backpack'
+    try {
+        def conn = new java.net.URL(url).openConnection()
+        conn.connectTimeout = 5000
+        conn.readTimeout = 10000
+        conn.setRequestProperty('User-Agent', 'backpack-arsenal-build')
+        def code = conn.responseCode
+        if (code != 200) {
+            logger.warn("[cfwidget] HTTP ${code} — keeping existing version.")
+            return null
+        }
+        def json = new groovy.json.JsonSlurper().parse(conn.inputStream)
+        def files = json.files ?: []
+        if (files.isEmpty()) {
+            logger.warn("[cfwidget] no files on CurseForge yet — keeping existing version.")
+            return null
+        }
+        def latest = files[0].display ?: files[0].name ?: files[0].version
+        if (!latest) {
+            logger.warn("[cfwidget] couldn't parse version field — keeping existing.")
+            return null
+        }
+        return latest.toString()
+    } catch (Throwable t) {
+        logger.warn("[cfwidget] fetch failed: ${t.message} — keeping existing version.")
+        return null
+    }
+}
+
+// "1.0.0-alpha" → "1.0.1-alpha"、 "1.2.3" → "1.2.4" のように 数字の末尾 segment を +1。
+// 数字 segment が見つからない (純文字列等) なら "${v}.1" で fallback。
+ext.bumpPatch = { String v ->
+    def m = (v =~ /^(\d+(?:\.\d+)*)(.*)$/)
+    if (!m.matches()) return "${v}.1"
+    def numeric = m[0][1]
+    def suffix  = m[0][2]
+    def parts = numeric.split('\\.').toList()
+    parts[-1] = ((parts[-1] as int) + 1).toString()
+    return parts.join('.') + suffix
 }
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)

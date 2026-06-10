@@ -98,27 +98,32 @@ public class VoltaicCapacitorAnvilHandler {
             event.setOutput(output);
             event.setCost(ANVIL_SHEARS_STRIP_XP_COST);
             event.setMaterialCost(1); // shears は vanilla 側で消費される。 AnvilRepairEvent で
-                                       // ダメージ 1 だけ受けた shears を player に戻す。
+                                       // 「stage 数 ダメージ」を受けた shears を player に戻す。
         }
     }
 
-    /** (C) のフォローアップ: アンビルで shears を使った時、 take 後に「ダメージ 1 の shears」を
-     *  player に戻すことで「消費」を「1 ダメージ」に置き換える。 Unbreaking は hurtAndBreak が
-     *  処理する。 */
+    /** (C) のフォローアップ: アンビルで shears を使った時、 take 後に「剥がした stage 数だけ
+     *  ダメージを受けた shears」を player に戻す。 vanilla 消費 → 段階数ダメージ replacement。
+     *  Unbreaking は hurtAndBreak が確率処理する。 */
     @SubscribeEvent
     public static void onAnvilRepair(AnvilRepairEvent event) {
         ItemStack right = event.getRight();
         ItemStack output = event.getOutput();
+        ItemStack left = event.getLeft();
         if (output.getItem() != ArsenalItems.VOLTAIC_BLADE.get()) return;
         if (!(right.getItem() instanceof ShearsItem)) return;
         // (C) の結果は stages が 0、 capacitor 経由なら 0 以外。 念のためチェック。
         if (VoltaicBladeItem.getCapacitorStageCount(output) != 0) return;
 
+        // 剥がした段階数 = take 前の left の stage 数
+        int strippedStages = VoltaicBladeItem.getCapacitorStageCount(left);
+        if (strippedStages <= 0) return;
+
         Player p = event.getEntity();
         ItemStack returned = right.copy();
         returned.setCount(1);
-        // 1 ダメージ。 Unbreaking で確率回避される (vanilla hurtAndBreak の仕様)。
-        returned.hurtAndBreak(1, p, e -> {});
+        // 剥がした段階数 ぶんダメージ。 Unbreaking で確率回避される (vanilla hurtAndBreak の仕様)。
+        returned.hurtAndBreak(strippedStages, p, e -> {});
         if (returned.isEmpty()) return; // shears 破壊。 戻さない。
         if (!p.getInventory().add(returned)) {
             p.drop(returned, false);
@@ -149,8 +154,10 @@ public class VoltaicCapacitorAnvilHandler {
             if (hasEnchants) {
                 EnchantmentHelper.setEnchantments(Collections.emptyMap(), main);
             }
-            // Unbreaking 配慮あり ダメージ
-            offhand.hurtAndBreak(1, p, e -> e.broadcastBreakEvent(EquipmentSlot.OFFHAND));
+            // 段階数ぶんのダメージ。 stage が無くて enchant だけ剥がす時も 1 ダメージ。
+            // Unbreaking は hurtAndBreak が確率処理。
+            int dmg = Math.max(1, stages.length);
+            offhand.hurtAndBreak(dmg, p, e -> e.broadcastBreakEvent(EquipmentSlot.OFFHAND));
             p.level().playSound(null, p.getX(), p.getY(), p.getZ(),
                 SoundEvents.SHEEP_SHEAR, SoundSource.PLAYERS, 0.8f, 1.1f);
         }

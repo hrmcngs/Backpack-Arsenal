@@ -75,21 +75,30 @@ public class VoltaicBladeShearStripRecipe extends CustomRecipe {
         return ItemStack.EMPTY;
     }
 
-    /** shears スロットには 1 ダメージ済みの shears を戻す。 grid 上で 「無くならない」 が
-     *  ダメージは入る。 vanilla の hurtAndBreak で Unbreaking 確率回避も働く。 */
+    /** shears スロットには 「剥がした段階数」 だけダメージを受けた shears を戻す。 grid 上で
+     *  「無くならない」 がダメージは入る。 hurtAndBreak は LivingEntity 引数必須で recipe context
+     *  からは取得できないため、 ここでは NBT 直接書きで近似 (Unbreaking は効かない)。 */
     @Override
     public NonNullList<ItemStack> getRemainingItems(CraftingContainer container) {
         NonNullList<ItemStack> remaining = NonNullList.withSize(container.getContainerSize(), ItemStack.EMPTY);
+        // 剥がした段階数 を 先に blade から計算 (= grid 上の blade の stage 数)。
+        // matches() が enchant のみケースも通すので、 stage 0 のときは enchant 剥がし 1 ダメージ。
+        int strippedStages = 0;
+        for (int i = 0; i < container.getContainerSize(); i++) {
+            ItemStack s = container.getItem(i);
+            if (s.getItem() == ArsenalItems.VOLTAIC_BLADE.get()) {
+                strippedStages = VoltaicBladeItem.getCapacitorStageCount(s);
+                break;
+            }
+        }
+        int damage = Math.max(1, strippedStages);
+
         for (int i = 0; i < container.getContainerSize(); i++) {
             ItemStack s = container.getItem(i);
             if (s.getItem() instanceof ShearsItem) {
                 ItemStack damaged = s.copy();
                 damaged.setCount(1);
-                // hurtAndBreak で Unbreaking 確率回避を効かせるため LivingEntity 必要だが
-                // ここでは取得できないので、 NBT 直接書きで近似 (Unbreaking 効果無し)。
-                // → vanilla shapeless で tool を ingredient にする時の標準 (= ToolAction)
-                //   と同じ挙動。 本来は in-hand と同等にしたいが trade-off で簡素化。
-                int newDamage = damaged.getDamageValue() + 1;
+                int newDamage = damaged.getDamageValue() + damage;
                 if (newDamage >= damaged.getMaxDamage()) {
                     remaining.set(i, ItemStack.EMPTY); // 壊れる
                 } else {

@@ -6,15 +6,15 @@ on:
   # こちらを正規ルートにする。
   push:
     branches: [main]
-  # 手動実行 (release type を明示指定したいとき用)
+  # 手動実行 (release type を明示指定したいとき用)。 test は CF に上げず jar 化のみ。
   workflow_dispatch:
     inputs:
       release_type:
-        description: 'CurseForge release type'
+        description: 'CurseForge release type (test = build jar only, no CF upload)'
         required: true
         default: 'alpha'
         type: choice
-        options: [alpha, beta, release]
+        options: [alpha, beta, release, test]
 
 permissions:
   contents: read
@@ -41,7 +41,13 @@ jobs:
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             RELEASE_TYPE="${{ inputs.release_type }}"
-            SHOULD_UPLOAD="true"
+            # test は CF アップロードしない (jar artifact だけ作る)
+            if [ "$RELEASE_TYPE" = "test" ]; then
+              SHOULD_UPLOAD="false"
+              echo "::notice::workflow_dispatch test — build jar only, no CF upload"
+            else
+              SHOULD_UPLOAD="true"
+            fi
           elif [ "${{ github.event_name }}" = "push" ]; then
             # この commit に紐付く PR を API で検索 (merge commit の場合 1 件)。
             PR_JSON=$(gh api "repos/${{ github.repository }}/commits/$COMMIT_SHA/pulls" 2>/dev/null || echo "[]")
@@ -51,15 +57,21 @@ jobs:
             # release/* branch からの merge PR の時だけ CF にアップロード。
             # (普通のコード変更や直 push では upload しない)
             if [[ "$PR_HEAD" == release/* ]]; then
-              SHOULD_UPLOAD="true"
-              echo "::notice::push from release PR ($PR_HEAD) — will upload"
-              # 優先度: Release > Beta > Alpha
-              if echo "$PR_BODY" | grep -qiE '^- \[x\] \*\*Release\*\*'; then
-                RELEASE_TYPE="release"
-              elif echo "$PR_BODY" | grep -qiE '^- \[x\] \*\*Beta\*\*'; then
-                RELEASE_TYPE="beta"
+              # 優先度: Test > Release > Beta > Alpha   (Test が明示されてたら upload しない)
+              if echo "$PR_BODY" | grep -qiE '^- \[x\] \*\*Test\*\*'; then
+                RELEASE_TYPE="test"
+                SHOULD_UPLOAD="false"
+                echo "::notice::release PR ($PR_HEAD) flagged as Test — build only, no CF upload"
               else
-                RELEASE_TYPE="alpha"
+                SHOULD_UPLOAD="true"
+                echo "::notice::push from release PR ($PR_HEAD) — will upload"
+                if echo "$PR_BODY" | grep -qiE '^- \[x\] \*\*Release\*\*'; then
+                  RELEASE_TYPE="release"
+                elif echo "$PR_BODY" | grep -qiE '^- \[x\] \*\*Beta\*\*'; then
+                  RELEASE_TYPE="beta"
+                else
+                  RELEASE_TYPE="alpha"
+                fi
               fi
             else
               echo "::notice::push not from release/* PR (head='$PR_HEAD') — build only, skip upload"
@@ -119,7 +131,16 @@ jobs:
       # で自動取得するので CI 側で何も用意する必要なし。
       # MAW の新版が出たら build.gradle の maw_curse_file を更新する。
 
+      # CF upload する run のときだけ「CF 最新 + 1」 (= bumpCfVersion) を使う。
+      # 普通の push / PR check のときは fetchCfVersion (= 同じ version を使う) のみで
+      # キャッシュ更新もせず安全に build できる。
+      - name: Bump version (CF upload run)
+        if: needs.resolve.outputs.should_upload == 'true'
+        run: ./gradlew bumpCfVersion --no-daemon
+        continue-on-error: true
+
       - name: Fetch latest CurseForge version (best-effort)
+        if: needs.resolve.outputs.should_upload != 'true'
         run: ./gradlew fetchCfVersion --no-daemon
         continue-on-error: true
 
@@ -130,8 +151,10 @@ jobs:
       # been closed" 例外で落ちることがあるため使わない。
       # ⚠ --parallel / --configureondemand も ForgeGradle 6 と非互換なので付けない
       # (runClient タスクが late registered のため task graph に乗らない)。
+      # release_type は resolve job が決定済 (alpha/beta/release)。 build.gradle 側で
+      # -Prelease_type を見て jar version の suffix を上書きする (alpha→-alpha、 release→suffix 無し)。
       - name: Build
-        run: ./gradlew assemble -x test --no-daemon
+        run: ./gradlew assemble -x test --no-daemon -Prelease_type=${{ needs.resolve.outputs.release_type }}
 
       - name: Locate built jar
         id: findjar
