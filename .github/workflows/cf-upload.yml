@@ -46,8 +46,12 @@ jobs:
       - name: 'Parse issue body for release_type / sha'
         id: parse
         run: |
-          # gh issue view は GraphQL を使うので REST に統一
-          BODY=$(gh api "/repos/${GH_REPO}/issues/$ISSUE_NUMBER" --jq .body)
+          # curl で REST 直叩き (gh CLI 経由は 401 が出る環境がある)
+          BODY=$(curl -sS \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$GH_REPO/issues/$ISSUE_NUMBER" \
+            | jq -r .body)
           # metadata footer の SHA / run_id / default_type を抜く
           SHA=$(echo "$BODY" | grep -E '^sha=' | head -1 | cut -d= -f2)
           RUN_ID=$(echo "$BODY" | grep -E '^run_id=' | head -1 | cut -d= -f2)
@@ -88,10 +92,16 @@ jobs:
       - name: 'Skip (release_type=test)'
         if: steps.parse.outputs.release_type == 'test'
         run: |
-          gh api -X POST "/repos/${GH_REPO}/issues/$ISSUE_NUMBER/comments" \
-            -f body="✅ Approved as **test** — no CurseForge upload performed (build artifact already produced in run #${{ steps.parse.outputs.run_id }})."
-          gh api -X POST "/repos/${GH_REPO}/issues/$ISSUE_NUMBER/labels" \
-            -f 'labels[]=cf-test-only' >/dev/null 2>&1 || true
+          curl -sS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$GH_REPO/issues/$ISSUE_NUMBER/comments" \
+            -d "{\"body\":\"✅ Approved as **test** — no CurseForge upload performed (build artifact already produced in run #${{ steps.parse.outputs.run_id }}).\"}" >/dev/null || true
+          curl -sS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$GH_REPO/issues/$ISSUE_NUMBER/labels" \
+            -d '{"labels":["cf-test-only"]}' >/dev/null || true
           {
             echo ""
             echo "### test mode — no upload."
@@ -205,11 +215,20 @@ jobs:
           if [ "$HTTP" != "200" ]; then
             echo "::error::CurseForge upload failed with HTTP $HTTP"
             cat response.json | head -40
-            gh api -X POST "/repos/${GH_REPO}/issues/$ISSUE_NUMBER/comments" \
-              -f body="❌ CurseForge upload failed (HTTP $HTTP). See run logs."
-            gh api -X POST "/repos/${GH_REPO}/issues/$ISSUE_NUMBER/labels" \
-              -f 'labels[]=cf-upload-failed' >/dev/null 2>&1 || true
-            gh api -X DELETE "/repos/${GH_REPO}/issues/$ISSUE_NUMBER/labels/cf-approval-pending" >/dev/null 2>&1 || true
+            curl -sS -X POST \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$GH_REPO/issues/$ISSUE_NUMBER/comments" \
+              -d "{\"body\":\"❌ CurseForge upload failed (HTTP $HTTP). See run logs.\"}" >/dev/null || true
+            curl -sS -X POST \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$GH_REPO/issues/$ISSUE_NUMBER/labels" \
+              -d '{"labels":["cf-upload-failed"]}' >/dev/null || true
+            curl -sS -X DELETE \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$GH_REPO/issues/$ISSUE_NUMBER/labels/cf-approval-pending" >/dev/null || true
             exit 1
           fi
 
@@ -218,16 +237,29 @@ jobs:
         run: |
           FILE_ID=$(jq -r '.id // empty' response.json 2>/dev/null || true)
           if [ -z "$FILE_ID" ]; then
-            gh api -X POST "/repos/${GH_REPO}/issues/$ISSUE_NUMBER/comments" \
-              -f body="⚠ Upload returned HTTP 200 but no file id — check CurseForge manually."
+            curl -sS -X POST \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$GH_REPO/issues/$ISSUE_NUMBER/comments" \
+              -d "{\"body\":\"⚠ Upload returned HTTP 200 but no file id — check CurseForge manually.\"}" >/dev/null || true
             exit 0
           fi
           CF_URL="https://www.curseforge.com/minecraft/mc-mods/arsenal-backpack/files/$FILE_ID"
-          gh api -X POST "/repos/${GH_REPO}/issues/$ISSUE_NUMBER/comments" \
-            -f body="✅ Uploaded as **$RELEASE_TYPE**: [\`$(basename $JAR_PATH)\` #$FILE_ID]($CF_URL)"
-          gh api -X POST "/repos/${GH_REPO}/issues/$ISSUE_NUMBER/labels" \
-            -f 'labels[]=cf-uploaded' >/dev/null 2>&1 || true
-          gh api -X DELETE "/repos/${GH_REPO}/issues/$ISSUE_NUMBER/labels/cf-approval-pending" >/dev/null 2>&1 || true
+          BODY_JSON=$(jq -nc --arg b "✅ Uploaded as **$RELEASE_TYPE**: [\`$(basename $JAR_PATH)\` #$FILE_ID]($CF_URL)" '{body: $b}')
+          curl -sS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$GH_REPO/issues/$ISSUE_NUMBER/comments" \
+            -d "$BODY_JSON" >/dev/null || true
+          curl -sS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$GH_REPO/issues/$ISSUE_NUMBER/labels" \
+            -d '{"labels":["cf-uploaded"]}' >/dev/null || true
+          curl -sS -X DELETE \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$GH_REPO/issues/$ISSUE_NUMBER/labels/cf-approval-pending" >/dev/null || true
           {
             echo ""
             echo "### ✅ Uploaded"

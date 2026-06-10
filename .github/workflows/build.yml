@@ -236,27 +236,66 @@ jobs:
       COMMIT_SHA: ${{ github.sha }}
       RUN_ID: ${{ github.run_id }}
     steps:
+      - name: 'Diagnostic: token validity check'
+        run: |
+          # token が REST API レベルで通るか確認 (GET /repos は issues:read で OK)。
+          HTTP=$(curl -sS -o /tmp/probe.json -w "%{http_code}" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/$GH_REPO")
+          echo "::notice::repo probe HTTP $HTTP"
+          if [ "$HTTP" != "200" ]; then
+            echo "::error::GITHUB_TOKEN can't even GET /repos — auth completely broken."
+            cat /tmp/probe.json | head -20
+            exit 1
+          fi
+          # issues:write の確認: ラベル一覧取得 (issues 系の最軽量 read)
+          HTTP=$(curl -sS -o /tmp/probe.json -w "%{http_code}" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$GH_REPO/labels?per_page=1")
+          echo "::notice::labels probe HTTP $HTTP"
+          if [ "$HTTP" != "200" ]; then
+            echo "::error::issues read denied — permissions block may not be granting issues:write"
+            cat /tmp/probe.json | head -20
+            exit 1
+          fi
+          echo "auth OK"
+
       - name: 'Close any superseded approval issues'
         run: |
-          # gh issue list は GraphQL を使うため 401 になる場合があり、 REST API に統一する。
-          ISSUES=$(gh api "/repos/${GH_REPO}/issues?labels=cf-approval-pending&state=open" --jq '.[].number' 2>/dev/null || echo "")
+          # REST 直叩き (curl)。 gh CLI を介さない。
+          ISSUES=$(curl -sS \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$GH_REPO/issues?labels=cf-approval-pending&state=open" \
+            | jq -r '.[].number' 2>/dev/null || echo "")
           for NUM in $ISSUES; do
-            if [ -n "$NUM" ]; then
-              gh api -X POST "/repos/${GH_REPO}/issues/$NUM/comments" \
-                -f body="Superseded by new push \`${COMMIT_SHA:0:7}\` (run #$RUN_ID)" >/dev/null 2>&1 || true
-              gh api -X PATCH "/repos/${GH_REPO}/issues/$NUM" \
-                -f state=closed -f state_reason=not_planned >/dev/null 2>&1 || true
+            if [ -n "$NUM" ] && [ "$NUM" != "null" ]; then
+              curl -sS -X POST \
+                -H "Authorization: Bearer $GH_TOKEN" \
+                -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/repos/$GH_REPO/issues/$NUM/comments" \
+                -d "{\"body\":\"Superseded by new push \`${COMMIT_SHA:0:7}\` (run #$RUN_ID)\"}" >/dev/null || true
+              curl -sS -X PATCH \
+                -H "Authorization: Bearer $GH_TOKEN" \
+                -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/repos/$GH_REPO/issues/$NUM" \
+                -d '{"state":"closed","state_reason":"not_planned"}' >/dev/null || true
               echo "closed superseded issue #$NUM"
             fi
           done
 
       - name: 'Ensure labels exist'
         run: |
-          # REST 直叩き (gh label create も GraphQL を一部経由するため避ける)
           create_label() {
             local NAME=$1; local COLOR=$2; local DESC=$3
-            gh api -X POST "/repos/${GH_REPO}/labels" \
-              -f name="$NAME" -f color="$COLOR" -f description="$DESC" >/dev/null 2>&1 || true
+            curl -sS -X POST \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$GH_REPO/labels" \
+              -d "{\"name\":\"$NAME\",\"color\":\"$COLOR\",\"description\":\"$DESC\"}" >/dev/null || true
           }
           create_label "cf-approval-pending" "FBCA04" "Awaiting checkbox tick + close for CF upload"
           create_label "cf-cancelled"        "B60205" "CF upload cancelled"
@@ -303,15 +342,28 @@ jobs:
           -->
           EOF
 
-          # gh issue create は GraphQL mutation を使い 401 が出る環境がある (GITHUB_TOKEN の
-          # 一部 issue write 系 mutation が拒否されるケース)。 REST POST に統一。
+          # JSON body 組み立て (jq が改行/quote escape してくれる)
           TITLE="CF approval: ${JAR_NAME} (\`${COMMIT_SHA:0:7}\`)"
-          ISSUE_JSON=$(gh api -X POST "/repos/${GH_REPO}/issues" \
-            -f title="$TITLE" \
-            -f body="$(cat /tmp/body.md)" \
-            -f 'labels[]=cf-approval-pending')
-          ISSUE_URL=$(echo "$ISSUE_JSON" | jq -r '.html_url')
-          ISSUE_NUMBER=$(echo "$ISSUE_JSON" | jq -r '.number')
+          PAYLOAD=$(jq -nc \
+            --arg title "$TITLE" \
+            --rawfile body /tmp/body.md \
+            '{title: $title, body: $body, labels: ["cf-approval-pending"]}')
+
+          # curl で REST 直叩き — gh CLI を一切経由しない (gh: Requires authentication 回避)
+          HTTP=$(curl -sS -o /tmp/issue.json -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/$GH_REPO/issues" \
+            -d "$PAYLOAD")
+          echo "POST /issues HTTP $HTTP"
+          if [ "$HTTP" != "201" ]; then
+            echo "::error::Issue creation failed HTTP $HTTP"
+            cat /tmp/issue.json | head -40
+            exit 1
+          fi
+          ISSUE_URL=$(jq -r '.html_url' /tmp/issue.json)
+          ISSUE_NUMBER=$(jq -r '.number' /tmp/issue.json)
           echo "::notice::Approval issue created: #$ISSUE_NUMBER $ISSUE_URL"
           {
             echo "## Approval issue created"
