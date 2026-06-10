@@ -170,7 +170,7 @@ jobs:
     environment: curseforge
     steps:
       - name: Download built jar
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: backpack-arsenal-jar
           path: dist
