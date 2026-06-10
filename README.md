@@ -90,6 +90,34 @@ Guard 等に専念。
    雷パーティクル + 雷音
 6. 1 ヒット 200 消費 → 0 まで使い切ったらバックパックへ戻して再充電
 
+### Forge Energy (FE) 発電 — Mekanism / Create / 他 FE pipe と連携
+
+設置した `arsenal_backpack_electron` ブロックは voltaic_blade の充電と同期して
+内部に **Forge Energy (FE)** を貯め、外部のパイプ/ケーブルに供給できる
+"発電機" として機能します。
+
+| 項目 | 既定値 | 設定キー |
+| --- | --- | --- |
+| 内部バッファ容量 | 100,000 FE | `feCapacity` |
+| 発電レート | 2,000 FE/tick (= 40,000 FE/秒) | `feGenPerTick` |
+| 最大出力 | 5,000 FE/tick | `feMaxExtract` |
+
+動作:
+
+1. ブロックを設置 → 中に voltaic_blade を入れる
+2. 10 tick おきに自動で blade を充電 + 内部 FE バッファに発電
+   ([`BackpackFeEvents`](src/main/java/backpackarsenal/energy/BackpackFeEvents.java))
+3. blade が満タンになるとそのまま FE 発電も止まる (= 充電が走った tick だけ発電)
+4. 任意の面に **Mekanism universal cable / Create's electric conduit / その他 FE pipe** を繋ぐと
+   自動で吸い出される (発電専用なので `receiveEnergy()` は 0 — 外部から FE を流し込めない)
+5. ブロックを壊すと内部 FE バッファは失われる (blade のチャージは ItemStack NBT で残る)
+
+実装は **Forge built-in の `IEnergyStorage` のみ** 使っているので、Mekanism / Create
+等が無い環境でも本 mod は単独でビルド・動作できます (FE は何にも繋がないだけ)。
+
+設定変更は `<minecraft>/config/backpack_arsenal.json` を編集し、`/backpack_arsenal reload`
+でホットリロード可。
+
 ---
 
 ## バックパック型 鞘 (saya) モデル
@@ -124,13 +152,60 @@ Guard 等に専念。
 
 ### コマンド
 ```sh
-./gradlew build              # JAR をビルド (build/libs/backpack-arsenal-1.0.0.jar)
-./run_client.sh              # 本体MOD jar を最新化してから dev クライアント起動
-./run_quick.sh               # 手元の jar のまま即起動 (ネット不要)
-./run_client.sh --offline    # オフラインモード
+./gradlew build                            # JAR をビルド (build/libs/backpack-arsenal-1.0.0.jar)
+./gradlew build --offline                  # オフラインビルド (gradle/forge_gradle/maven 依存は要キャッシュ済み)
+./run_client.sh                            # 本体MOD jar を最新化してから dev クライアント起動
+./run_quick.sh                             # 手元の jar のまま即起動 (ネット不要)
+./run_client.sh --offline                  # オフラインモード (依存キャッシュ済みなら完全オフラインで起動)
 ```
 
 Windows なら同名の `.bat` を使用してください。
+
+#### Mekanism 連携テスト (任意)
+
+本 mod が発電する FE を **Mekanism のユニバーサルケーブル** で吸出してテストしたい場合:
+
+```sh
+./gradlew runClient -PwithMekanism=true                              # 初回はオンラインで CurseMaven から DL
+./gradlew runClient -PwithMekanism=true --offline                    # 2回目以降はオフライン可 (キャッシュ参照)
+./gradlew runClient -PwithMekanism=true -Pmekanism_curse_file=NNNN   # 最新 fileId で上書き
+```
+
+| プロパティ | 意味 | 既定 |
+| --- | --- | --- |
+| `withMekanism` | true で Mekanism を runtime に追加 (`runtimeOnly`) | `false` |
+| `mekanism_curse_file` | CurseMaven の Mekanism file id | `5710401` (古い場合は CF で確認して上書き) |
+| `mekanism_local_version` | `libs/local/mekanism/<ver>/mekanism-<ver>.jar` のバージョン部 | `1.20.1-10.4.16.80` |
+
+**取得元の解決順**:
+1. `libs/local/mekanism/<ver>/mekanism-<ver>.jar` があればそれを使う (**完全オフラインで動く**)
+2. 無ければ CurseMaven (`-Pmekanism_curse_file=NNNN`) から fetch (要オンライン or 既キャッシュ)
+
+手元に jar (例: `Mekanism-1.20.1-10.4.16.80.jar`) がある場合は
+
+```sh
+mkdir -p libs/local/mekanism/1.20.1-10.4.16.80
+cp /path/to/Mekanism-1.20.1-10.4.16.80.jar \
+   libs/local/mekanism/1.20.1-10.4.16.80/mekanism-1.20.1-10.4.16.80.jar
+./gradlew runClient --offline -PwithMekanism=true   # CurseMaven 行かずローカル jar から deobf
+```
+
+恒久的に有効化したいなら `gradle.properties` に `withMekanism=true` と書き足してください。
+**配布 jar (CurseForge にアップロードする jar) には Mekanism は同梱されません** — 本 mod の
+FE 連携は Forge 標準の `IEnergyStorage` だけ使うため、Mekanism 非依存でビルドできます。
+
+#### 完全オフラインビルドのコツ
+
+`./gradlew build --offline` で完結させるには事前に以下を 1 度オンラインで実行しておけば OK:
+
+```sh
+./gradlew build                          # gradle wrapper / forge / 必要 jar を全部キャッシュ
+./gradlew build -PwithMekanism=true      # (任意) Mekanism も一緒にキャッシュ
+```
+
+その後は `--offline` でネット遮断環境でもビルド可能になります。なお
+`downloadMCMeta` / `downloadAssets` task は手元のキャッシュがあれば自動 skip するよう
+`build.gradle` で構成済みです (企業 TLS 介入対策)。
 
 ### 動作確認の例
 ```mcfunction

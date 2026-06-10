@@ -32,10 +32,20 @@ public class ArsenalBackpackConfig {
     // ===== デフォルト値 =====
     public static final int DEFAULT_INVENTORY_SLOTS    = 9;
     public static final int DEFAULT_UPGRADE_SLOTS      = 4;
+    /** 設置時 FE 内部バッファの最大容量。Mekanism cable / 他 FE pipe が吸う。 */
+    public static final int DEFAULT_FE_CAPACITY        = 100_000;
+    /** voltaic_blade 充電中の tick あたり発電量 (FE)。 10 tick おき走査なので
+     *  実際は {@code DEFAULT_FE_GEN_PER_TICK * 10} ずつバッファに足される。 */
+    public static final int DEFAULT_FE_GEN_PER_TICK    = 2_000;
+    /** 外部パイプが 1 tick で吸い出せる FE の上限。 */
+    public static final int DEFAULT_FE_MAX_EXTRACT     = 5_000;
 
     // ===== 実行時値 (load() で上書きされる) =====
     public static int inventorySlots    = DEFAULT_INVENTORY_SLOTS;
     public static int upgradeSlots      = DEFAULT_UPGRADE_SLOTS;
+    public static int feCapacity        = DEFAULT_FE_CAPACITY;
+    public static int feGenPerTick      = DEFAULT_FE_GEN_PER_TICK;
+    public static int feMaxExtract      = DEFAULT_FE_MAX_EXTRACT;
 
     private static final String FILE_NAME = "backpack_arsenal.json";
 
@@ -56,9 +66,13 @@ public class ArsenalBackpackConfig {
             JsonObject obj = JsonParser.parseString(json).getAsJsonObject();
             inventorySlots    = readInt(obj, "inventorySlots",    DEFAULT_INVENTORY_SLOTS);
             upgradeSlots      = readInt(obj, "upgradeSlots",      DEFAULT_UPGRADE_SLOTS);
+            feCapacity        = readInt(obj, "feCapacity",        DEFAULT_FE_CAPACITY);
+            feGenPerTick      = readInt(obj, "feGenPerTick",      DEFAULT_FE_GEN_PER_TICK);
+            feMaxExtract      = readInt(obj, "feMaxExtract",      DEFAULT_FE_MAX_EXTRACT);
             BackpackArsenalMod.LOGGER.info(
-                "[{}] Loaded config: inv={}, upgrade={}",
-                BackpackArsenalMod.MODID, inventorySlots, upgradeSlots);
+                "[{}] Loaded config: inv={}, upgrade={}, feCap={}, feGen={}, feOut={}",
+                BackpackArsenalMod.MODID, inventorySlots, upgradeSlots,
+                feCapacity, feGenPerTick, feMaxExtract);
         } catch (Exception e) {
             BackpackArsenalMod.LOGGER.error(
                 "[{}] Failed to load config, using defaults", BackpackArsenalMod.MODID, e);
@@ -81,10 +95,14 @@ public class ArsenalBackpackConfig {
             obj.addProperty("_help_2", "OR use /backpack_arsenal reload (op only) for hot reload");
             obj.addProperty("inventorySlots", inventorySlots);
             obj.addProperty("upgradeSlots",   upgradeSlots);
+            obj.addProperty("feCapacity",     feCapacity);
+            obj.addProperty("feGenPerTick",   feGenPerTick);
+            obj.addProperty("feMaxExtract",   feMaxExtract);
             Gson gson = new GsonBuilder().setPrettyPrinting().create();
             Files.writeString(file, gson.toJson(obj), StandardCharsets.UTF_8);
-            BackpackArsenalMod.LOGGER.info("[{}] Saved config: inv={}, upgrade={}",
-                BackpackArsenalMod.MODID, inventorySlots, upgradeSlots);
+            BackpackArsenalMod.LOGGER.info("[{}] Saved config: inv={}, upgrade={}, fe={}/{}/{}",
+                BackpackArsenalMod.MODID, inventorySlots, upgradeSlots,
+                feCapacity, feGenPerTick, feMaxExtract);
         } catch (IOException e) {
             BackpackArsenalMod.LOGGER.error(
                 "[{}] Failed to save config", BackpackArsenalMod.MODID, e);
@@ -100,6 +118,9 @@ public class ArsenalBackpackConfig {
             obj.addProperty("_help_2", "OR use /backpack_arsenal reload (op only) for hot reload");
             obj.addProperty("inventorySlots", DEFAULT_INVENTORY_SLOTS);
             obj.addProperty("upgradeSlots",   DEFAULT_UPGRADE_SLOTS);
+            obj.addProperty("feCapacity",     DEFAULT_FE_CAPACITY);
+            obj.addProperty("feGenPerTick",   DEFAULT_FE_GEN_PER_TICK);
+            obj.addProperty("feMaxExtract",   DEFAULT_FE_MAX_EXTRACT);
             Gson gson = new GsonBuilder().setPrettyPrinting().create();
             Files.writeString(file, gson.toJson(obj), StandardCharsets.UTF_8);
         } catch (IOException e) {
@@ -111,6 +132,9 @@ public class ArsenalBackpackConfig {
     private static void resetToDefaults() {
         inventorySlots = DEFAULT_INVENTORY_SLOTS;
         upgradeSlots   = DEFAULT_UPGRADE_SLOTS;
+        feCapacity     = DEFAULT_FE_CAPACITY;
+        feGenPerTick   = DEFAULT_FE_GEN_PER_TICK;
+        feMaxExtract   = DEFAULT_FE_MAX_EXTRACT;
     }
 
     private static int readInt(JsonObject obj, String key, int def) {
