@@ -227,6 +227,9 @@ jobs:
       contents: read
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # gh CLI は git repo context が無いと target repo を解決できない。
+      # checkout してないので明示する。
+      GH_REPO: ${{ github.repository }}
       DEFAULT_TYPE: ${{ needs.resolve.outputs.release_type }}
       JAR_NAME: ${{ needs.build.outputs.jar_name }}
       MOD_VERSION: ${{ needs.build.outputs.mod_version }}

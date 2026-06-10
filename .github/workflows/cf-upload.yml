@@ -27,8 +27,16 @@ jobs:
       !contains(github.event.issue.labels.*.name, 'cf-cancelled') &&
       github.event.sender.login == github.event.repository.owner.login
     runs-on: ubuntu-latest
+    # CURSEFORGE_TOKEN / CURSEFORGE_PROJECT_ID は environment "curseforge" の secret に
+    # 登録されてるため、 ここで environment 指定が無いと secrets.* が空になる。
+    # Required Reviewers gate を残しておくと「Issue close で承認 → さらに environment
+    # approval 待ち」 の 2 段になるので、 「checkbox UI」 1 段で済ませたいなら environment
+    # の Required reviewers 設定を Settings UI で外してください (secrets 自体はそのまま保持)。
+    environment: curseforge
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # checkout より前に gh CLI を使う step があるので明示
+      GH_REPO: ${{ github.repository }}
       CF_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
       CF_PROJECT_ID: ${{ secrets.CURSEFORGE_PROJECT_ID }}
       CF_GAME_VERSION_IDS: ${{ vars.CF_GAME_VERSION_IDS }}
