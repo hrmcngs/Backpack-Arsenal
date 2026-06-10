@@ -5,8 +5,9 @@ name: CF Upload (issue-triggered)
 #   - [x] alpha    → CF alpha
 #   - [x] beta     → CF beta
 #   - [x] release  → CF release (suffix 無し jar)
-#   - [x] test     → CF アップロード skip
-#   (none ticked) → metadata footer の default_type 採用
+#   - [x] test     → CF アップロード skip (jar artifact のみ作る)
+#   (none ticked) → CF アップロード skip (= 「手を滑らせた」 安全側 default)。
+#                   upload したい時は issue を再 open → 1 つ tick → close で再 trigger。
 #
 # 認可: cf-approval-pending label が付いてる issue を、 リポ owner / collaborator が
 # close したときのみ実行。 cf-cancelled label が付いてたら skip。
@@ -72,12 +73,17 @@ jobs:
               if (re.test(body)) { type = t; break; }
             }
             if (!type) {
-              type = default_type;
-              core.notice(`no checkbox ticked → default_type=${type}`);
-            } else {
-              core.notice(`release_type from checkbox: ${type}`);
+              core.warning(`no checkbox ticked → upload SKIPPED (要 release type tick で再 open + close)`);
+              core.setOutput('skip', 'true');
+              core.setOutput('release_type', '');
+              core.setOutput('sha', sha);
+              core.setOutput('run_id', run_id);
+              core.setOutput('mod_version', mod_version);
+              return;
             }
+            core.notice(`release_type from checkbox: ${type}`);
 
+            core.setOutput('skip', 'false');
             core.setOutput('release_type', type);
             core.setOutput('sha', sha);
             core.setOutput('run_id', run_id);
@@ -94,9 +100,33 @@ jobs:
               ])
               .write();
 
+      # ── 無選択 close: upload skip + Issue に notify ──────────────────
+      - name: 'Skip (no checkbox ticked)'
+        if: steps.parse.outputs.skip == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNum = parseInt(process.env.ISSUE_NUMBER, 10);
+            await github.rest.issues.createComment({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: issueNum,
+              body: '⏸ No release type checkbox was ticked — CurseForge upload skipped.\n\n' +
+                    'To trigger upload: reopen this issue, tick exactly one **alpha / beta / release / test** checkbox, then close again.',
+            });
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: issueNum,
+              labels: ['cf-cancelled'],
+            });
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner, repo: context.repo.repo, issue_number: issueNum,
+                name: 'cf-approval-pending',
+              });
+            } catch (e) { if (e.status !== 404) throw e; }
+            await core.summary.addHeading('⏸ Upload skipped (no checkbox)').write();
+
       # ── test type: jar build せず skip ────────────────────────────────
       - name: 'Skip (release_type=test)'
-        if: steps.parse.outputs.release_type == 'test'
+        if: steps.parse.outputs.skip != 'true' && steps.parse.outputs.release_type == 'test'
         uses: actions/github-script@v7
         with:
           script: |
@@ -114,21 +144,21 @@ jobs:
 
       # ── 通常 type: ビルド → CF アップロード ────────────────────────────
       - name: 'Checkout (at issue sha)'
-        if: steps.parse.outputs.release_type != 'test'
+        if: steps.parse.outputs.skip != 'true' && steps.parse.outputs.release_type != 'test'
         uses: actions/checkout@v6
         with:
           ref: ${{ steps.parse.outputs.sha }}
           fetch-depth: 1
 
       - name: 'Set up JDK 17'
-        if: steps.parse.outputs.release_type != 'test'
+        if: steps.parse.outputs.skip != 'true' && steps.parse.outputs.release_type != 'test'
         uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
 
       - name: 'Restore gradle cache'
-        if: steps.parse.outputs.release_type != 'test'
+        if: steps.parse.outputs.skip != 'true' && steps.parse.outputs.release_type != 'test'
         uses: actions/cache@v5
         with:
           path: |
@@ -145,7 +175,7 @@ jobs:
           key: gradle-fg6-v3-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
 
       - name: 'Build jar with selected release_type'
-        if: steps.parse.outputs.release_type != 'test'
+        if: steps.parse.outputs.skip != 'true' && steps.parse.outputs.release_type != 'test'
         env:
           NEW_TYPE: ${{ steps.parse.outputs.release_type }}
         run: |
@@ -162,7 +192,7 @@ jobs:
           echo "::notice::built $(basename $JAR) ($SIZE)"
 
       - name: 'Validate CF secrets'
-        if: steps.parse.outputs.release_type != 'test'
+        if: steps.parse.outputs.skip != 'true' && steps.parse.outputs.release_type != 'test'
         run: |
           if [ -z "$CF_TOKEN" ] || [ -z "$CF_PROJECT_ID" ] || [ -z "$CF_GAME_VERSION_IDS" ]; then
             echo "::error::CURSEFORGE_TOKEN / CURSEFORGE_PROJECT_ID / CF_GAME_VERSION_IDS の secret/variable が足りません"
@@ -170,7 +200,7 @@ jobs:
           fi
 
       - name: 'Prepare CurseForge metadata (auto-changelog)'
-        if: steps.parse.outputs.release_type != 'test'
+        if: steps.parse.outputs.skip != 'true' && steps.parse.outputs.release_type != 'test'
         env:
           COMMIT_SHA: ${{ steps.parse.outputs.sha }}
         run: |
@@ -207,7 +237,7 @@ jobs:
 
       - name: 'Upload to CurseForge'
         id: cfupload
-        if: steps.parse.outputs.release_type != 'test'
+        if: steps.parse.outputs.skip != 'true' && steps.parse.outputs.release_type != 'test'
         run: |
           echo "::notice::POST $(basename $JAR_PATH) ($JAR_SIZE) as $RELEASE_TYPE ..."
           HTTP=$(curl --progress-bar \
@@ -225,7 +255,7 @@ jobs:
           fi
 
       - name: 'Notify issue (upload failed)'
-        if: failure() && steps.parse.outputs.release_type != 'test' && steps.cfupload.conclusion == 'failure'
+        if: failure() && steps.parse.outputs.skip != 'true' && steps.parse.outputs.release_type != 'test' && steps.cfupload.conclusion == 'failure'
         uses: actions/github-script@v7
         with:
           script: |
@@ -247,7 +277,7 @@ jobs:
             } catch (e) { if (e.status !== 404) throw e; }
 
       - name: 'Verify CurseForge response & notify issue'
-        if: success() && steps.parse.outputs.release_type != 'test'
+        if: success() && steps.parse.outputs.skip != 'true' && steps.parse.outputs.release_type != 'test'
         uses: actions/github-script@v7
         env:
           JAR_PATH: ${{ env.JAR_PATH }}
