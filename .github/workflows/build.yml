@@ -238,18 +238,31 @@ jobs:
     steps:
       - name: 'Close any superseded approval issues'
         run: |
-          # 既存の cf-approval-pending な issue を全部 close (= 最新 push だけ生かす)
-          gh issue list --label "cf-approval-pending" --state open --json number --jq '.[].number' | \
-          while read NUM; do
+          # gh issue list は GraphQL を使うため 401 になる場合があり、 REST API に統一する。
+          ISSUES=$(gh api "/repos/${GH_REPO}/issues?labels=cf-approval-pending&state=open" --jq '.[].number' 2>/dev/null || echo "")
+          for NUM in $ISSUES; do
             if [ -n "$NUM" ]; then
-              gh issue close "$NUM" --comment "Superseded by new push \`${COMMIT_SHA:0:7}\` (run #$RUN_ID)" --reason "not planned" || true
+              gh api -X POST "/repos/${GH_REPO}/issues/$NUM/comments" \
+                -f body="Superseded by new push \`${COMMIT_SHA:0:7}\` (run #$RUN_ID)" >/dev/null 2>&1 || true
+              gh api -X PATCH "/repos/${GH_REPO}/issues/$NUM" \
+                -f state=closed -f state_reason=not_planned >/dev/null 2>&1 || true
+              echo "closed superseded issue #$NUM"
             fi
           done
 
       - name: 'Ensure labels exist'
         run: |
-          gh label create "cf-approval-pending" --color "FBCA04" --description "Awaiting checkbox tick + close for CF upload" 2>/dev/null || true
-          gh label create "cf-cancelled" --color "B60205" --description "CF upload cancelled" 2>/dev/null || true
+          # REST 直叩き (gh label create も GraphQL を一部経由するため避ける)
+          create_label() {
+            local NAME=$1; local COLOR=$2; local DESC=$3
+            gh api -X POST "/repos/${GH_REPO}/labels" \
+              -f name="$NAME" -f color="$COLOR" -f description="$DESC" >/dev/null 2>&1 || true
+          }
+          create_label "cf-approval-pending" "FBCA04" "Awaiting checkbox tick + close for CF upload"
+          create_label "cf-cancelled"        "B60205" "CF upload cancelled"
+          create_label "cf-uploaded"         "0E8A16" "Uploaded to CurseForge"
+          create_label "cf-upload-failed"    "B60205" "CurseForge upload failed"
+          create_label "cf-test-only"        "BFDADC" "Approved as test, no upload"
 
       - name: 'Create approval issue with checkbox'
         run: |
@@ -290,15 +303,20 @@ jobs:
           -->
           EOF
 
-          ISSUE_URL=$(gh issue create \
-            --title "CF approval: ${JAR_NAME} (\`${COMMIT_SHA:0:7}\`)" \
-            --body-file /tmp/body.md \
-            --label "cf-approval-pending")
-          echo "::notice::Approval issue created: $ISSUE_URL"
+          # gh issue create は GraphQL mutation を使い 401 が出る環境がある (GITHUB_TOKEN の
+          # 一部 issue write 系 mutation が拒否されるケース)。 REST POST に統一。
+          TITLE="CF approval: ${JAR_NAME} (\`${COMMIT_SHA:0:7}\`)"
+          ISSUE_JSON=$(gh api -X POST "/repos/${GH_REPO}/issues" \
+            -f title="$TITLE" \
+            -f body="$(cat /tmp/body.md)" \
+            -f 'labels[]=cf-approval-pending')
+          ISSUE_URL=$(echo "$ISSUE_JSON" | jq -r '.html_url')
+          ISSUE_NUMBER=$(echo "$ISSUE_JSON" | jq -r '.number')
+          echo "::notice::Approval issue created: #$ISSUE_NUMBER $ISSUE_URL"
           {
             echo "## Approval issue created"
             echo ""
-            echo "$ISSUE_URL"
+            echo "[#$ISSUE_NUMBER]($ISSUE_URL)"
             echo ""
             echo "Tick a release type checkbox & close the issue to trigger upload."
           } >> "$GITHUB_STEP_SUMMARY"
