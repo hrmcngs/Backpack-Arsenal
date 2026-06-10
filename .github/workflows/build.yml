@@ -225,11 +225,11 @@ jobs:
           } > "$GITHUB_STEP_SUMMARY"
           if [ -z "$CF_TOKEN" ] || [ -z "$CF_PROJECT_ID" ] || [ -z "$CF_GAME_VERSION_IDS" ]; then
             echo "::error::Missing required secret/variable: CURSEFORGE_TOKEN / CURSEFORGE_PROJECT_ID / CF_GAME_VERSION_IDS"
-            sed -i 's|1/5 Validate secrets | ⏳ running|1/5 Validate secrets | ❌ missing|' "$GITHUB_STEP_SUMMARY"
+            sed -i 's~1/5 Validate secrets ~ ⏳ running~1/5 Validate secrets ~ ❌ missing~' "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
           echo "::notice::▰▱▱▱▱ 20%  secrets OK ($(echo $CF_TOKEN | wc -c) char token, project $CF_PROJECT_ID)"
-          sed -i 's|1/5 Validate secrets | ⏳ running|1/5 Validate secrets | ✅ done|' "$GITHUB_STEP_SUMMARY"
+          sed -i 's~1/5 Validate secrets ~ ⏳ running~1/5 Validate secrets ~ ✅ done~' "$GITHUB_STEP_SUMMARY"
 
       - name: '2/5 ▰▰▱▱▱ (40%)  Download built jar'
         uses: actions/download-artifact@v8
@@ -243,14 +243,14 @@ jobs:
           JAR=$(ls dist/*.jar | grep -v sources | grep -v javadoc | head -1)
           if [ ! -f "$JAR" ]; then
             echo "::error::No jar found in dist/"
-            sed -i 's|2/5 Download jar | ⏳ verifying|2/5 Download jar | ❌ missing|' "$GITHUB_STEP_SUMMARY"
+            sed -i 's~2/5 Download jar ~ ⏳ verifying~2/5 Download jar ~ ❌ missing~' "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
           SIZE=$(du -h "$JAR" | cut -f1)
           echo "JAR_PATH=$JAR" >> "$GITHUB_ENV"
           echo "JAR_SIZE=$SIZE" >> "$GITHUB_ENV"
           echo "::notice::▰▰▱▱▱ 40%  jar=$(basename $JAR) size=$SIZE"
-          sed -i "s|2/5 Download jar | ⏳ verifying|2/5 Download jar ($SIZE) | ✅ done|" "$GITHUB_STEP_SUMMARY"
+          sed -i "s~2/5 Download jar ~ ⏳ verifying~2/5 Download jar ($SIZE) ~ ✅ done~" "$GITHUB_STEP_SUMMARY"
 
       - name: '3/5 ▰▰▰▱▱ (60%)  Prepare metadata'
         run: |
@@ -269,7 +269,7 @@ jobs:
             echo '__EOF__'
           } >> "$GITHUB_ENV"
           echo "::notice::▰▰▰▱▱ 60%  metadata prepared ($(echo $METADATA | wc -c) bytes)"
-          sed -i 's|3/5 Prepare metadata | ⏳ running|3/5 Prepare metadata | ✅ done|' "$GITHUB_STEP_SUMMARY"
+          sed -i 's~3/5 Prepare metadata ~ ⏳ running~3/5 Prepare metadata ~ ✅ done~' "$GITHUB_STEP_SUMMARY"
 
       - name: '4/5 ▰▰▰▰▱ (80%)  Upload to CurseForge (curl --progress-bar)'
         run: |
@@ -286,24 +286,24 @@ jobs:
           echo "HTTP_CODE=$HTTP" >> "$GITHUB_ENV"
           echo "::notice::upload HTTP $HTTP"
           if [ "$HTTP" != "200" ]; then
-            sed -i "s|4/5 Upload to CurseForge | ⏳ uploading.*|4/5 Upload to CurseForge | ❌ HTTP $HTTP|" "$GITHUB_STEP_SUMMARY"
+            sed -i "s~4/5 Upload to CurseForge ~ ⏳ uploading.*~4/5 Upload to CurseForge ~ ❌ HTTP $HTTP~" "$GITHUB_STEP_SUMMARY"
             echo "::error::CurseForge upload failed with HTTP $HTTP"
             cat response.json | head -40
             exit 1
           fi
-          sed -i "s|4/5 Upload to CurseForge | ⏳ uploading.*|4/5 Upload to CurseForge | ✅ HTTP 200|" "$GITHUB_STEP_SUMMARY"
+          sed -i "s~4/5 Upload to CurseForge ~ ⏳ uploading.*~4/5 Upload to CurseForge ~ ✅ HTTP 200~" "$GITHUB_STEP_SUMMARY"
 
       - name: '5/5 ▰▰▰▰▰ (100%) Verify CurseForge response'
         run: |
           echo "| 5/5 Verify response | ⏳ parsing |" >> "$GITHUB_STEP_SUMMARY"
           FILE_ID=$(jq -r '.id // empty' response.json 2>/dev/null || true)
           if [ -z "$FILE_ID" ]; then
-            sed -i 's|5/5 Verify response | ⏳ parsing|5/5 Verify response | ⚠ no file id (HTTP 200 but unknown body)|' "$GITHUB_STEP_SUMMARY"
+            sed -i 's~5/5 Verify response ~ ⏳ parsing~5/5 Verify response ~ ⚠ no file id (HTTP 200 but unknown body)~' "$GITHUB_STEP_SUMMARY"
             echo "::warning::HTTP 200 but no file id in response — check CurseForge."
             cat response.json
           else
             CF_URL="https://www.curseforge.com/minecraft/mc-mods/arsenal-backpack/files/$FILE_ID"
-            sed -i "s|5/5 Verify response | ⏳ parsing|5/5 Verify response (file #$FILE_ID) | ✅ done|" "$GITHUB_STEP_SUMMARY"
+            sed -i "s~5/5 Verify response ~ ⏳ parsing~5/5 Verify response (file #$FILE_ID) ~ ✅ done~" "$GITHUB_STEP_SUMMARY"
             {
               echo ""
               echo "### ✅ Uploaded"
