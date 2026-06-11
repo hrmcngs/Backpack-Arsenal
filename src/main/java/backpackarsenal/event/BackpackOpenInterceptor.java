@@ -61,9 +61,6 @@ public class BackpackOpenInterceptor {
         }
         if (!isArsenal) return;
 
-        BackpackArsenalMod.LOGGER.info(
-            "[backpack_arsenal] Intercepting SB BackpackContainer for arsenal_backpack, reopening with ours.");
-
         // 次 tick で差し替え (この event 中の同期 reopen は危険)
         final BackpackContext capturedCtx = ctx;
         player.server.execute(() -> {

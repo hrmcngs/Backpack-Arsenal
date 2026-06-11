@@ -38,20 +38,41 @@ public class ArsenalBackpackContainer extends BackpackContainer {
      *  feCapacityClient == 0 なら UI 描画を抑制。 */
     private int feStoredClient = 0;
     private int feCapacityClient = 0;
+    /** 直近 10-tick (0.5 秒) の発電量。 FE/s = この値 × 2。 */
+    private int feGenPerIntervalClient = 0;
+    /** ctx / player を render 側からも引けるよう保持。 client で wrapper を直接読んで
+     *  charger 寄与を計算するために使う ( DataSlot 経由は network truncation / 同期遅延
+     *  / wrapper stale 問題が積み重なって信頼性が低かったので廃止 )。 */
+    private final BackpackContext capturedCtx;
+    private final Player capturedPlayer;
 
     public ArsenalBackpackContainer(int containerId, Player player, BackpackContext ctx) {
         super(containerId, player, ctx);
-        backpackarsenal.BackpackArsenalMod.LOGGER.info(
-            "[backpack_arsenal] ArsenalBackpackContainer ctor: side={}, id={}",
-            player.level().isClientSide ? "CLIENT" : "SERVER", containerId);
+        this.capturedCtx = ctx;
+        this.capturedPlayer = player;
         overrideMenuType();
         attachFeDataSlots(player, ctx);
     }
+
+    public BackpackContext getCapturedCtx() { return capturedCtx; }
+    public Player getCapturedPlayer() { return capturedPlayer; }
 
     /** 現在の FE 量 (client 側でミラーされた値)。 placed でない場合は 0。 */
     public int feStored() { return feStoredClient; }
     /** FE 容量 (client 側でミラーされた値)。 0 なら placed backpack ではない or BE 不在。 */
     public int feCapacity() { return feCapacityClient; }
+    /** 直近 0.5 秒の発電量 (FE)。 FE/s = この値 × 2。 */
+    public int feGenPerInterval() { return feGenPerIntervalClient; }
+
+    /** charger 倍率寄与合計 ( client 側で wrapper を直接読んで計算 )。 multiplier = 1 + これ。
+     *  held / placed 両対応。 DataSlot 経由は信頼性が低かったので毎呼び出し計算に変更。 */
+    public int multiplierContribution() {
+        try {
+            return sumChargerContributions(capturedCtx.getBackpackWrapper(capturedPlayer));
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
 
     /**
      * placed backpack の場合のみ、その BE が持つ {@link IEnergyStorage} を 4 個の
@@ -67,6 +88,8 @@ public class ArsenalBackpackContainer extends BackpackContainer {
         if (be == null) return;
         IEnergyStorage storage = be.getCapability(ForgeCapabilities.ENERGY).orElse(null);
         if (storage == null) return;
+        // 発電量を引くために BE → Provider lookup ( server side のみ意味がある)。
+        final BlockEntity beRef = be;
 
         // FE current — server 側で storage.getEnergyStored() を読み、 16-bit short × 2 で sync。
         addDataSlot(new DataSlot() {
@@ -94,6 +117,47 @@ public class ArsenalBackpackContainer extends BackpackContainer {
                 feCapacityClient = (feCapacityClient & 0xFFFF) | ((v & 0xFFFF) << 16);
             }
         });
+        // FE generation rate ( 直近 10-tick 発電量、 0.5 秒分 )。 16-bit 二分割。
+        addDataSlot(new DataSlot() {
+            public int get() {
+                var p = backpackarsenal.energy.BackpackFeEvents.getProvider(beRef);
+                return p == null ? 0 : (p.lastGenPerInterval & 0xFFFF);
+            }
+            public void set(int v) {
+                feGenPerIntervalClient = (feGenPerIntervalClient & 0xFFFF0000) | (v & 0xFFFF);
+            }
+        });
+        addDataSlot(new DataSlot() {
+            public int get() {
+                var p = backpackarsenal.energy.BackpackFeEvents.getProvider(beRef);
+                return p == null ? 0 : ((p.lastGenPerInterval >>> 16) & 0xFFFF);
+            }
+            public void set(int v) {
+                feGenPerIntervalClient = (feGenPerIntervalClient & 0xFFFF) | ((v & 0xFFFF) << 16);
+            }
+        });
+    }
+
+    /** {@link backpackarsenal.event.BackpackChargingHandler#sumVoltaicChargerContributions}
+     *  と同一ロジック。 サーバー側 gen 計算はこの形で正しく動いているので UI sync も
+     *  揃える ( raw slot 走査だと SB 内部の何かが噛んで 0 を返すケースが観測された )。 */
+    private static int sumChargerContributions(
+            net.p3pp3rf1y.sophisticatedcore.api.IStorageWrapper wrapper) {
+        if (wrapper == null) return 0;
+        try {
+            int s = 0;
+            for (var w : wrapper.getUpgradeHandler().getTypeWrappers(
+                    backpackarsenal.upgrade.VoltaicChargerUpgradeItem.TYPE)) {
+                if (w != null && w.isEnabled()) s += w.getMultiplierContribution();
+            }
+            for (var w : wrapper.getUpgradeHandler().getTypeWrappers(
+                    backpackarsenal.upgrade.VoltaicGrowthUpgradeItem.TYPE)) {
+                if (w != null && w.isEnabled()) s += w.getMultiplierContribution();
+            }
+            return s;
+        } catch (Throwable t) {
+            return 0;
+        }
     }
 
     /** AbstractContainerMenu.menuType を private final ごと reflection で上書き。 */

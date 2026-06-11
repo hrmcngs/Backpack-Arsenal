@@ -71,9 +71,6 @@ public final class SayaBackpackOverlay {
     public static void onRegisterAdditional(ModelEvent.RegisterAdditional event) {
         event.register(SAYA_WITH_BLADE_ID);
         event.register(SAYA_EMPTY_ID);
-        BackpackArsenalMod.LOGGER.info(
-            "[backpack_arsenal] registered additional models for baking: {}, {}",
-            SAYA_WITH_BLADE_ID, SAYA_EMPTY_ID);
     }
 
     @SubscribeEvent
@@ -96,9 +93,6 @@ public final class SayaBackpackOverlay {
                 if (k.getNamespace().equals(id.getNamespace())
                         && k.getPath().equals(id.getPath())) {
                     model = entry.getValue();
-                    BackpackArsenalMod.LOGGER.info(
-                        "[backpack_arsenal] {} found via fallback scan: stored-key={} (class={})",
-                        label, k, k.getClass().getSimpleName());
                     break;
                 }
             }
@@ -109,8 +103,6 @@ public final class SayaBackpackOverlay {
                 label, models.size());
             return null;
         }
-        BackpackArsenalMod.LOGGER.info(
-            "[backpack_arsenal] cached {} BakedModel ({})", label, model.getClass().getSimpleName());
         return model;
     }
 
@@ -209,29 +201,11 @@ public final class SayaBackpackOverlay {
             var mm = Minecraft.getInstance().getModelManager();
             if (cachedSayaWithBladeModel == null) {
                 BakedModel m = mm.getModel(SAYA_WITH_BLADE_LOOKUP);
-                if (m != null && m != mm.getMissingModel()) {
-                    cachedSayaWithBladeModel = m;
-                    BackpackArsenalMod.LOGGER.info(
-                        "[backpack_arsenal] saya_voltaic_blade recovered at runtime ({})",
-                        m.getClass().getSimpleName());
-                } else {
-                    BackpackArsenalMod.LOGGER.warn(
-                        "[backpack_arsenal] saya_voltaic_blade runtime lookup failed (got {})",
-                        m == null ? "null" : "missingModel");
-                }
+                if (m != null && m != mm.getMissingModel()) cachedSayaWithBladeModel = m;
             }
             if (cachedSayaEmptyModel == null) {
                 BakedModel m = mm.getModel(SAYA_EMPTY_LOOKUP);
-                if (m != null && m != mm.getMissingModel()) {
-                    cachedSayaEmptyModel = m;
-                    BackpackArsenalMod.LOGGER.info(
-                        "[backpack_arsenal] saya_voltaic_blade_kara recovered at runtime ({})",
-                        m.getClass().getSimpleName());
-                } else {
-                    BackpackArsenalMod.LOGGER.warn(
-                        "[backpack_arsenal] saya_voltaic_blade_kara runtime lookup failed (got {})",
-                        m == null ? "null" : "missingModel");
-                }
+                if (m != null && m != mm.getMissingModel()) cachedSayaEmptyModel = m;
             }
         } catch (Throwable t) {
             BackpackArsenalMod.LOGGER.error(
@@ -239,23 +213,10 @@ public final class SayaBackpackOverlay {
         }
     }
 
-    /** スキップ理由が変わった時だけ log。毎フレーム同じ理由を吐いても spam するだけなので
-     *  前回と同じ理由なら抑制する。 */
-    private static void logSkipOnce(String reason) {
-        if (!reason.equals(lastSkipReason)) {
-            BackpackArsenalMod.LOGGER.info("[backpack_arsenal] saya overlay skipped: {}", reason);
-            lastSkipReason = reason;
-        }
-    }
-
-    /** variant が切り替わった時だけ log。 with-blade ↔ empty の遷移を 1 回だけ記録。 */
-    private static void logDrawOnce(String variantName, int voltaicCount) {
-        if (!variantName.equals(lastDrawVariant)) {
-            BackpackArsenalMod.LOGGER.info(
-                "[backpack_arsenal] saya overlay drawing variant={} (voltaicCount={})",
-                variantName, voltaicCount);
-            lastDrawVariant = variantName;
-            lastSkipReason = null;
-        }
-    }
+    /** skip / draw 遷移ログは削除済み。 関数本体は no-op で残してあるので呼び出し側の
+     *  シグネチャを保つだけ ( 呼び出し側を消す方が後で楽になったら整理する )。 */
+    @SuppressWarnings("unused")
+    private static void logSkipOnce(String reason) {}
+    @SuppressWarnings("unused")
+    private static void logDrawOnce(String variantName, int voltaicCount) {}
 }

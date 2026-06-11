@@ -51,6 +51,8 @@ public class DrawFromBackpackPacket {
         List<ItemStack> backpacks = new ArrayList<>();
         BackpackScanner.forEachArsenalBackpack(player, backpacks::add);
 
+        ItemStack mainHandLive = player.getMainHandItem(); // identity 用 ( live ref )
+
         for (ItemStack backpackStack : backpacks) {
             IItemHandler handler = backpackStack
                 .getCapability(ForgeCapabilities.ITEM_HANDLER)
@@ -61,10 +63,35 @@ public class DrawFromBackpackPacket {
                 ItemStack inner = mod.getStackInSlot(slot);
                 if (inner.getItem() != ArsenalItems.VOLTAIC_BLADE.get()) continue;
 
-                ItemStack mainHand = player.getMainHandItem().copy();
                 ItemStack drawn = inner.copy();
-                player.setItemInHand(InteractionHand.MAIN_HAND, drawn);
-                mod.setStackInSlot(slot, mainHand);
+
+                // ★ メインハンドが抜刀元 backpack 自身の場合の特殊処理。
+                //   通常の swap だと backpack を自分自身の slot に格納 → 外側参照消滅で消滅バグ。
+                //   逃がし先の優先順位 ( MAW 流: silent refuse 方針、 強制 drop はしない ):
+                //     1) offhand が空 → そこへ
+                //     2) inventory に余裕 ( player.getInventory().add ) → 追加
+                //     3) どちらも不可 → silent return ( 抜刀キャンセル )
+                if (mainHandLive == backpackStack) {
+                    ItemStack backpackCopy = backpackStack.copy();
+                    boolean stored;
+                    if (player.getOffhandItem().isEmpty()) {
+                        player.setItemInHand(InteractionHand.OFF_HAND, backpackCopy);
+                        stored = true;
+                    } else {
+                        stored = player.getInventory().add(backpackCopy);
+                    }
+                    if (!stored) {
+                        // 空き無し → MAW と同じく silent return ( drop しない、 backpack を失わない )
+                        return;
+                    }
+                    mod.setStackInSlot(slot, ItemStack.EMPTY); // 内側 slot を空にして blade 取り出し
+                    player.setItemInHand(InteractionHand.MAIN_HAND, drawn);
+                } else {
+                    // 通常 swap: メインハンド ↔ blade slot 交換。
+                    ItemStack mainHandCopy = mainHandLive.copy();
+                    player.setItemInHand(InteractionHand.MAIN_HAND, drawn);
+                    mod.setStackInSlot(slot, mainHandCopy);
+                }
                 drawSound(player);
                 return;
             }
