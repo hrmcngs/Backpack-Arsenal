@@ -51,31 +51,59 @@ ext.suffixForReleaseType = { String type ->
 }
 
 // stdin を 1 行読む。 console / InputStreamReader を順番に試す。 どちらも失敗なら null。
+// 同じ build run で複数回呼ぶ場合は BufferedReader を使い回す (= 1 回目で先読みした
+// 内部バッファを 2 回目以降にも引き継ぐ。 都度 new すると piped stdin の 2 行目が
+// 空文字で読まれてしまう)。
+ext.cachedStdinReader = null
 ext.readLineFlexible = { ->
     def console = System.console()
     if (console != null) {
         try { return console.readLine() } catch (Throwable ignored) {}
     }
+    if (project.ext.cachedStdinReader == null) {
+        try {
+            project.ext.cachedStdinReader = new BufferedReader(new InputStreamReader(System.in))
+        } catch (Throwable ignored) {
+            return null
+        }
+    }
     try {
-        def reader = new BufferedReader(new InputStreamReader(System.in))
-        return reader.readLine()
+        return project.ext.cachedStdinReader.readLine()
     } catch (Throwable ignored) {
         return null
     }
 }
 
 def overrideReleaseType = project.findProperty('release_type')
+def overrideModVersion  = project.findProperty('mod_version_override')
 def isCi = System.getenv('CI') == 'true' || System.getenv('GITHUB_ACTIONS') == 'true'
 def shouldPrompt = !overrideReleaseType &&
-        !project.hasProperty('mod_version_override') &&
+        !overrideModVersion &&
         !isCi &&
         gradle.startParameter.taskNames.any { it == 'build' || it.endsWith(':build') }
 
+// 1) バージョン入力 (空 Enter で 自動解決値 = cfCachedVersion / gradle.properties を採用)
+def chosenBaseVersion = null
+if (shouldPrompt) {
+    def autoBase = stripReleaseSuffix(baseResolvedVersion)
+    print "\n[backpack-arsenal] Enter mod version (press Enter for ${autoBase}):\n  > "
+    System.out.flush()
+    def input = readLineFlexible()?.trim()
+    if (input) {
+        chosenBaseVersion = stripReleaseSuffix(input) // ユーザが -alpha 等含めてきても剥がす
+        logger.lifecycle("[backpack-arsenal] version override: ${chosenBaseVersion}")
+    } else {
+        chosenBaseVersion = autoBase
+        logger.lifecycle("[backpack-arsenal] version auto: ${chosenBaseVersion}")
+    }
+}
+
+// 2) release type 選択
 def chosenReleaseType = null
 if (overrideReleaseType) {
     chosenReleaseType = overrideReleaseType
 } else if (shouldPrompt) {
-    def base = stripReleaseSuffix(baseResolvedVersion)
+    def base = chosenBaseVersion ?: stripReleaseSuffix(baseResolvedVersion)
     print "\n[backpack-arsenal] Select release type for version ${base}:\n" +
           "  [a]lpha    (default — CF alpha)\n" +
           "  [b]eta     (CF beta)\n" +
@@ -88,8 +116,14 @@ if (overrideReleaseType) {
     logger.lifecycle("[backpack-arsenal] release_type=${chosenReleaseType} → version=${base}${suffixForReleaseType(chosenReleaseType)}")
 }
 
+// 3) 最終 version を組み立て
+//    優先度: -Pmod_version_override > 対話入力 > baseResolvedVersion
+def effectiveBase = chosenBaseVersion ?: stripReleaseSuffix(baseResolvedVersion)
 if (chosenReleaseType) {
-    version = stripReleaseSuffix(baseResolvedVersion) + suffixForReleaseType(chosenReleaseType)
+    version = effectiveBase + suffixForReleaseType(chosenReleaseType)
+} else if (chosenBaseVersion) {
+    // base のみ入力されていて type 不明 → suffix 無しで使う
+    version = chosenBaseVersion
 } else {
     version = baseResolvedVersion
 }
