@@ -195,9 +195,11 @@ java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 // バージョン定義 — 本体MOD「The four primitives and Weapons」に合わせる
 // =====================================================================
 def mc_version    = '1.20.1'
-// Forge 47.3.0 — Mekanism 10.4.16.80 (forge >= 47.1.1 を要求) と互換にするため bump。
-// 旧 47.1.0 でビルドしたい場合は -Pforge_version=1.20.1-47.1.0 で上書き可。
-def forge_version = (project.findProperty('forge_version') ?: '1.20.1-47.3.0').toString()
+// Forge 47.1.0 を使用。 47.3.0 などへ bump すると ForgeGradle が Mojang/MCP の
+// メタデータを再取得しに行き、 企業 TLS 介入環境では SSL handshake_failure で
+// 失敗するため当面 47.1.0 で固定。 オフラインで bump したい場合は事前に
+// インターネット環境で `./gradlew tasks` を 1 回流して全 metadata を warm-up すること。
+def forge_version = (project.findProperty('forge_version') ?: '1.20.1-47.1.0').toString()
 
 // 本体MOD (libs/local/... に配置するjarの artifact 名とバージョン)
 def maw_artifact      = 'the_four_primitives_and_weapons'

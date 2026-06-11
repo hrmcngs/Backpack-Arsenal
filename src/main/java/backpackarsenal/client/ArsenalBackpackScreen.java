@@ -2,6 +2,7 @@ package backpackarsenal.client;
 
 import backpackarsenal.inventory.ArsenalBackpackContainer;
 import com.mojang.blaze3d.systems.RenderSystem;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -34,5 +35,32 @@ public class ArsenalBackpackScreen extends BackpackScreen {
         super.renderBg(gfx, partial, mouseX, mouseY);
         RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
         gfx.blit(CUSTOM_BG, leftPos, topPos, 0, 0, imageWidth, imageHeight, 256, 256);
+
+        // placed backpack なら FE 残量を表示。 held backpack (feCapacity == 0) では描画しない。
+        ArsenalBackpackContainer menu = (ArsenalBackpackContainer) this.menu;
+        int feMax = menu.feCapacity();
+        if (feMax > 0) {
+            int fe = menu.feStored();
+            int pct = Math.round(100f * fe / feMax);
+
+            // バー: 幅 100px、 高さ 4px、 タイトル直下に。
+            int barX = leftPos + 8;
+            int barY = topPos + 4;
+            int barW = 100;
+            int barH = 4;
+            int filled = Math.round(barW * (fe / (float) feMax));
+            // 枠
+            gfx.fill(barX - 1, barY - 1, barX + barW + 1, barY + barH + 1, 0xFF202020);
+            // 背景 (空き)
+            gfx.fill(barX, barY, barX + barW, barY + barH, 0xFF404040);
+            // 充電量 (青系)
+            if (filled > 0) {
+                gfx.fill(barX, barY, barX + filled, barY + barH, 0xFF55BBFF);
+            }
+
+            // 数値テキスト (バー右隣)
+            String text = ChatFormatting.AQUA + String.format("%,d / %,d FE (%d%%)", fe, feMax, pct);
+            gfx.drawString(this.font, text, barX + barW + 4, barY - 1, 0xFFFFFF, false);
+        }
     }
 }
