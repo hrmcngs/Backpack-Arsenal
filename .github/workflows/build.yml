@@ -300,15 +300,15 @@ jobs:
               '',
               '| Field | Value |',
               '|---|---|',
-              `| jar (build artifact) | \`${JAR_NAME}\` |`,
-              `| version              | \`${baseVer}\` |`,
-              `| commit               | \`${shortSha}\` |`,
-              `| default type         | **${DEFAULT_TYPE}** |`,
-              `| build run            | [#${RUN_ID}](${repoUrl}/actions/runs/${RUN_ID}) |`,
+              `| project base | \`${jarBase}\` |`,
+              `| version      | \`${baseVer}\` |`,
+              `| commit       | \`${shortSha}\` |`,
+              `| default type | **${DEFAULT_TYPE}** (no tick → no upload) |`,
+              `| build run    | [#${RUN_ID}](${repoUrl}/actions/runs/${RUN_ID}) (built as \`${JAR_NAME}\`) |`,
               '',
-              '> ⚠ 上の jar は CI の既定値 = `' + DEFAULT_TYPE + '` で作ったもの。',
-              '> 実際に CurseForge にアップロードされる jar は **下で tick した type で再ビルド** されるため、',
-              '> 下表の通り 名前が変わります。',
+              '> ⚠ 「build run」 行の jar 名 は CI が既定 type = `' + DEFAULT_TYPE + '` で 作った artifact。',
+              '> 実際 CurseForge にアップロードされる jar は **下で tick した type で再ビルド** されるので、',
+              '> 下表の各 checkbox の行を見て 「自分が望む 最終 jar 名」 を確認してから tick して close する。',
               '',
               '### 1. Tick ONE release type:',
               `- [ ] **alpha** — \`${finalJarFor('alpha')}\` (CF alpha)`,
@@ -335,10 +335,14 @@ jobs:
               '-->',
             ].join('\n');
 
+            // title は release type に依存しない 「project base - version」 形にする。
+            // 旧形式 (jar 名 をそのまま title) だと CI default = alpha なら "-alpha.jar" が
+            // title に出るが、 ユーザが [x] release を tick する場合 最終 jar は suffix 無し に
+            // なるので 「title と実際 upload された jar 名 が違う」 という違和感が出ていた。
             const issue = await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `CF approval: ${JAR_NAME}`,
+              title: `CF approval: ${jarBase} ${baseVer}`,
               body,
               labels: ['cf-approval-pending'],
             });
