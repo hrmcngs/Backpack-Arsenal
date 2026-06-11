@@ -32,13 +32,18 @@ public class ArsenalBackpackConfig {
     // ===== デフォルト値 =====
     public static final int DEFAULT_INVENTORY_SLOTS    = 9;
     public static final int DEFAULT_UPGRADE_SLOTS      = 4;
-    /** 設置時 FE 内部バッファの最大容量。Mekanism cable / 他 FE pipe が吸う。 */
-    public static final int DEFAULT_FE_CAPACITY        = 100_000;
-    /** voltaic_blade 充電中の tick あたり発電量 (FE)。 10 tick おき走査なので
-     *  実際は {@code DEFAULT_FE_GEN_PER_TICK * 10} ずつバッファに足される。 */
+    /** 設置時 FE 内部バッファの最大容量。 Mekanism cable / 他 FE pipe が吸う。
+     *  Integer.MAX_VALUE ( ~2.14 GFE ) で実質無制限。 これで high-multiplier ( Lv10000+ ×
+     *  4 slot = ~80 MFE/t 発電 ) でも buffer の "1 tick 分の受け入れ容量" が cable の
+     *  ボトルネックにならず、 cable / 消費機械の input cap が真の上限になる。 */
+    public static final int DEFAULT_FE_CAPACITY        = Integer.MAX_VALUE;
+    /** voltaic_blade 充電中の tick あたり発電量 (FE)。 per-tick fastTick が
+     *  この値 × multiplier を毎 tick storage に加算する。 */
     public static final int DEFAULT_FE_GEN_PER_TICK    = 2_000;
-    /** 外部パイプが 1 tick で吸い出せる FE の上限。 */
-    public static final int DEFAULT_FE_MAX_EXTRACT     = 5_000;
+    /** 外部パイプが 1 tick で吸い出せる FE の上限。 実質無制限 ( int 上限 ) にしておき、
+     *  ボトルネックは消費機械側の input cap で決まるようにする。 high-multiplier ( Lv1000+ )
+     *  の growth charger 構成でも storage saturate しないようにするため。 */
+    public static final int DEFAULT_FE_MAX_EXTRACT     = Integer.MAX_VALUE;
 
     // ===== 実行時値 (load() で上書きされる) =====
     public static int inventorySlots    = DEFAULT_INVENTORY_SLOTS;
@@ -69,6 +74,20 @@ public class ArsenalBackpackConfig {
             feCapacity        = readInt(obj, "feCapacity",        DEFAULT_FE_CAPACITY);
             feGenPerTick      = readInt(obj, "feGenPerTick",      DEFAULT_FE_GEN_PER_TICK);
             feMaxExtract      = readInt(obj, "feMaxExtract",      DEFAULT_FE_MAX_EXTRACT);
+
+            // 旧 default 値 ( feCapacity=100k / feMaxExtract=5k ) の自動アップグレード。
+            // 旧 default 以下なら未編集の旧 config と見なし、 新 default に上書きする。
+            // ユーザーがカスタム値を入れてた場合は新 default 超えてれば触らない。
+            boolean upgraded = false;
+            // 旧 default ( 100k / 10M ) は新 default ( Integer.MAX_VALUE ) にアップグレード。
+            if (feCapacity <= 10_000_000) { feCapacity = DEFAULT_FE_CAPACITY; upgraded = true; }
+            if (feMaxExtract <= 1_000_000) { feMaxExtract = DEFAULT_FE_MAX_EXTRACT; upgraded = true; }
+            if (upgraded) {
+                BackpackArsenalMod.LOGGER.info(
+                    "[{}] Upgraded FE config to new defaults (feCap={}, feOut={}). Saving.",
+                    BackpackArsenalMod.MODID, feCapacity, feMaxExtract);
+                save();
+            }
             BackpackArsenalMod.LOGGER.info(
                 "[{}] Loaded config: inv={}, upgrade={}, feCap={}, feGen={}, feOut={}",
                 BackpackArsenalMod.MODID, inventorySlots, upgradeSlots,

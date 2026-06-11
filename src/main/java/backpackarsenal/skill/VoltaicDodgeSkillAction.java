@@ -66,14 +66,6 @@ public class VoltaicDodgeSkillAction implements ISkillAction {
         // DASH_SPEED にそのまま乗らないように 1.0 を最低値とする。
         double speed = DODGE_SPEED * Math.max(1.0f, power);
 
-        // 一時デバッグ: 「後ろ以外に回避できない」報告の原因切り分け。
-        // server tick 単位なので spam にはならない (DASH cooldown は 2 秒)。
-        backpackarsenal.BackpackArsenalMod.LOGGER.info(
-            "[voltaic_step] zza={} xxa={} yaw={} → dir=({},{}) side={}",
-            player.zza, player.xxa, player.getYRot(),
-            String.format("%.2f", dir.x), String.format("%.2f", dir.z),
-            level.isClientSide ? "CLIENT" : "SERVER");
-
         // push() (= deltaMovement に加算) ではなく setDeltaMovement で即時速度を上書き。
         // 加算だと既存の Y 重力 / 微小水平速度に押し流されて反応が遅く感じる ("ラグい")。
         player.setDeltaMovement(dir.x * speed, 0.2, dir.z * speed);

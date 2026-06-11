@@ -26,6 +26,11 @@ public class ArsenalBackpackScreen extends BackpackScreen {
     private static final ResourceLocation CUSTOM_BG =
         new ResourceLocation("backpack_arsenal", "textures/gui/arsenal_backpack_bg.png");
 
+    /** Mekanism の純正 FE タブアイコン ( assets/mekanism/gui/tabs/energy_info_fe.png 26×26 )。
+     *  緑の雷マーク + "FE" 文字。 gui/energy.png は別物 ( anvil 風 ) なので使わない。 */
+    private static final ResourceLocation MEK_ENERGY_ICON =
+        new ResourceLocation("mekanism", "gui/tabs/energy_info_fe.png");
+
     public ArsenalBackpackScreen(ArsenalBackpackContainer container, Inventory inv, Component title) {
         super(container, inv, title);
     }
@@ -35,32 +40,67 @@ public class ArsenalBackpackScreen extends BackpackScreen {
         super.renderBg(gfx, partial, mouseX, mouseY);
         RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
         gfx.blit(CUSTOM_BG, leftPos, topPos, 0, 0, imageWidth, imageHeight, 256, 256);
+    }
 
-        // placed backpack なら FE 残量を表示。 held backpack (feCapacity == 0) では描画しない。
+    /**
+     * FE 表示は {@link #render} 側で super 後に描画する。
+     * {@link #renderBg} で描くと SB の title / slot の上にスロット ItemStack や
+     * tooltip 描画が後から重なって覆い隠されるので、 最上位で描く必要がある。
+     */
+    /** FE アイコンサイズ ( Mekanism の純正タブアイコンに合わせて 26×26 )。 */
+    private static final int FE_ICON_SIZE = 26;
+
+    @Override
+    public void render(GuiGraphics gfx, int mouseX, int mouseY, float partial) {
+        super.render(gfx, mouseX, mouseY, partial);
         ArsenalBackpackContainer menu = (ArsenalBackpackContainer) this.menu;
-        int feMax = menu.feCapacity();
-        if (feMax > 0) {
-            int fe = menu.feStored();
-            int pct = Math.round(100f * fe / feMax);
 
-            // バー: 幅 100px、 高さ 4px、 タイトル直下に。
-            int barX = leftPos + 8;
-            int barY = topPos + 4;
-            int barW = 100;
-            int barH = 4;
-            int filled = Math.round(barW * (fe / (float) feMax));
-            // 枠
-            gfx.fill(barX - 1, barY - 1, barX + barW + 1, barY + barH + 1, 0xFF202020);
-            // 背景 (空き)
-            gfx.fill(barX, barY, barX + barW, barY + barH, 0xFF404040);
-            // 充電量 (青系)
-            if (filled > 0) {
-                gfx.fill(barX, barY, barX + filled, barY + barH, 0xFF55BBFF);
-            }
+        // FE アイコン位置: GUI 真下、 左端から少しオフセットしたところ。
+        //   ( player inventory より下なので JEI / 創造インベントリ と重ならない )。
+        //   下側パネル方式と同じ位置を踏襲。
+        int iconX = leftPos + 4;
+        int iconY = topPos + imageHeight + 2;
 
-            // 数値テキスト (バー右隣)
-            String text = ChatFormatting.AQUA + String.format("%,d / %,d FE (%d%%)", fe, feMax, pct);
-            gfx.drawString(this.font, text, barX + barW + 4, barY - 1, 0xFFFFFF, false);
+        // Mekanism 純正テクスチャを blit ( 緑の雷 + "FE" 文字 )。
+        com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+        gfx.blit(MEK_ENERGY_ICON, iconX, iconY, 0, 0, FE_ICON_SIZE, FE_ICON_SIZE, FE_ICON_SIZE, FE_ICON_SIZE);
+
+        // ============== アイコン右に「発電量」だけ常時表示 ==============
+        //   multiplierContribution() は client side で wrapper を直接読んで計算するので
+        //   held / placed どちらでも正しい multiplier が即座に取れる ( DataSlot 同期遅延 /
+        //   16-bit network truncation の影響を受けない )。
+        int multiplierTotal = 1 + menu.multiplierContribution();
+        long genPerTick = (long) backpackarsenal.init.ArsenalBackpackConfig.feGenPerTick
+                * multiplierTotal;
+        int textX = iconX + FE_ICON_SIZE + 4;
+        int textY = iconY + (FE_ICON_SIZE - this.font.lineHeight) / 2; // 縦中央寄せ
+        gfx.drawString(this.font,
+            ChatFormatting.GREEN + "+" + formatEnergyPerTick(genPerTick),
+            textX, textY, 0xFFFFFF, false);
+
+        // ============== アイコンホバーで tooltip ( 発電量だけ ) ==============
+        if (mouseX >= iconX && mouseX < iconX + FE_ICON_SIZE
+            && mouseY >= iconY && mouseY < iconY + FE_ICON_SIZE) {
+            gfx.renderTooltip(this.font,
+                java.util.List.of(Component.literal(
+                    ChatFormatting.WHITE + "Output: " + ChatFormatting.AQUA
+                    + formatEnergyPerTick(genPerTick))),
+                java.util.Optional.empty(), mouseX, mouseY);
         }
     }
+
+    /** "X.YY {prefix}FE/t" 形式 ( Mekanism の Energy Cube tooltip と同じ )。 prefix は k/M/G/T。 */
+    private static String formatEnergyPerTick(long n) {
+        return formatEnergy(n) + "/t";
+    }
+
+    /** "X.YY {prefix}FE" 形式。 prefix は数値ではなく単位側につく ( "3.27 MFE" )。 */
+    private static String formatEnergy(long n) {
+        if (n < 1_000L) return n + " FE";
+        if (n < 1_000_000L) return String.format("%.2f kFE", n / 1_000.0);
+        if (n < 1_000_000_000L) return String.format("%.2f MFE", n / 1_000_000.0);
+        if (n < 1_000_000_000_000L) return String.format("%.2f GFE", n / 1_000_000_000.0);
+        return String.format("%.2f TFE", n / 1_000_000_000_000.0);
+    }
+
 }
