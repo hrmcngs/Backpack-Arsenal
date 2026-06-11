@@ -74,6 +74,49 @@ ext.readLineFlexible = { ->
     }
 }
 
+// cfwidget から CF 最新バージョン文字列を取得。 失敗時 null。
+// 対話プロンプトの default 生成にも使うのでここで先に定義する (タスク定義は後ろ)。
+ext.fetchCfLatestVersion = { ->
+    def url = 'https://api.cfwidget.com/minecraft/mc-mods/arsenal-backpack'
+    try {
+        def conn = new java.net.URL(url).openConnection()
+        conn.connectTimeout = 3000
+        conn.readTimeout = 5000
+        conn.setRequestProperty('User-Agent', 'backpack-arsenal-build')
+        def code = conn.responseCode
+        if (code != 200) {
+            logger.warn("[cfwidget] HTTP ${code} — keeping existing version.")
+            return null
+        }
+        def json = new groovy.json.JsonSlurper().parse(conn.inputStream)
+        def files = json.files ?: []
+        if (files.isEmpty()) {
+            logger.warn("[cfwidget] no files on CurseForge yet — keeping existing version.")
+            return null
+        }
+        def latest = files[0].display ?: files[0].name ?: files[0].version
+        if (!latest) {
+            logger.warn("[cfwidget] couldn't parse version field — keeping existing.")
+            return null
+        }
+        return latest.toString()
+    } catch (Throwable t) {
+        logger.warn("[cfwidget] fetch failed: ${t.message} — keeping existing version.")
+        return null
+    }
+}
+
+// "1.0.0-alpha" → "1.0.1-alpha"、 "1.2.3" → "1.2.4" のように 数字の末尾 segment を +1。
+ext.bumpPatch = { String v ->
+    def m = (v =~ /^(\d+(?:\.\d+)*)(.*)$/)
+    if (!m.matches()) return "${v}.1"
+    def numeric = m[0][1]
+    def suffix  = m[0][2]
+    def parts = numeric.split('\\.').toList()
+    parts[-1] = ((parts[-1] as int) + 1).toString()
+    return parts.join('.') + suffix
+}
+
 def overrideReleaseType = project.findProperty('release_type')
 def overrideModVersion  = project.findProperty('mod_version_override')
 def isCi = System.getenv('CI') == 'true' || System.getenv('GITHUB_ACTIONS') == 'true'
@@ -82,11 +125,17 @@ def shouldPrompt = !overrideReleaseType &&
         !isCi &&
         gradle.startParameter.taskNames.any { it == 'build' || it.endsWith(':build') }
 
-// 1) バージョン入力 (空 Enter で 自動解決値 = cfCachedVersion / gradle.properties を採用)
+// 1) バージョン入力 (空 Enter で 「CF 最新 + 1 (= 自動 bump)」 を採用)。
+//    cfwidget 取得失敗時は gradle.properties / cf cache の値を使う。
 def chosenBaseVersion = null
 if (shouldPrompt) {
-    def autoBase = stripReleaseSuffix(baseResolvedVersion)
-    print "\n[backpack-arsenal] Enter mod version (press Enter for ${autoBase}):\n  > "
+    def fallbackBase = stripReleaseSuffix(baseResolvedVersion)
+    def cfLatest = fetchCfLatestVersion()  // network 失敗時 null
+    def autoBase = cfLatest ? stripReleaseSuffix(bumpPatch(stripReleaseSuffix(cfLatest))) : fallbackBase
+    def hint = cfLatest \
+        ? "auto-bumped from CF latest ${stripReleaseSuffix(cfLatest)}" \
+        : "gradle.properties / cache fallback"
+    print "\n[backpack-arsenal] Enter mod version (press Enter for ${autoBase} = ${hint}):\n  > "
     System.out.flush()
     def input = readLineFlexible()?.trim()
     if (input) {
@@ -94,7 +143,7 @@ if (shouldPrompt) {
         logger.lifecycle("[backpack-arsenal] version override: ${chosenBaseVersion}")
     } else {
         chosenBaseVersion = autoBase
-        logger.lifecycle("[backpack-arsenal] version auto: ${chosenBaseVersion}")
+        logger.lifecycle("[backpack-arsenal] version auto: ${chosenBaseVersion} (${hint})")
     }
 }
 
@@ -180,49 +229,6 @@ tasks.register('bumpCfVersion') {
     }
 }
 
-// cfwidget から CF 最新バージョン文字列を取得。 失敗時 null。
-ext.fetchCfLatestVersion = { ->
-    def url = 'https://api.cfwidget.com/minecraft/mc-mods/arsenal-backpack'
-    try {
-        def conn = new java.net.URL(url).openConnection()
-        conn.connectTimeout = 5000
-        conn.readTimeout = 10000
-        conn.setRequestProperty('User-Agent', 'backpack-arsenal-build')
-        def code = conn.responseCode
-        if (code != 200) {
-            logger.warn("[cfwidget] HTTP ${code} — keeping existing version.")
-            return null
-        }
-        def json = new groovy.json.JsonSlurper().parse(conn.inputStream)
-        def files = json.files ?: []
-        if (files.isEmpty()) {
-            logger.warn("[cfwidget] no files on CurseForge yet — keeping existing version.")
-            return null
-        }
-        def latest = files[0].display ?: files[0].name ?: files[0].version
-        if (!latest) {
-            logger.warn("[cfwidget] couldn't parse version field — keeping existing.")
-            return null
-        }
-        return latest.toString()
-    } catch (Throwable t) {
-        logger.warn("[cfwidget] fetch failed: ${t.message} — keeping existing version.")
-        return null
-    }
-}
-
-// "1.0.0-alpha" → "1.0.1-alpha"、 "1.2.3" → "1.2.4" のように 数字の末尾 segment を +1。
-// 数字 segment が見つからない (純文字列等) なら "${v}.1" で fallback。
-ext.bumpPatch = { String v ->
-    def m = (v =~ /^(\d+(?:\.\d+)*)(.*)$/)
-    if (!m.matches()) return "${v}.1"
-    def numeric = m[0][1]
-    def suffix  = m[0][2]
-    def parts = numeric.split('\\.').toList()
-    parts[-1] = ((parts[-1] as int) + 1).toString()
-    return parts.join('.') + suffix
-}
-
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
 // =====================================================================
@@ -249,10 +255,7 @@ def mawDestFile = new File(mawDestDir, "${maw_artifact}-${maw_version}.jar")
 def mawSourceJarDir = file("${mawSourceProject}/build/libs")
 if (mawSourceJarDir.exists()) {
     def latestJar = mawSourceJarDir.listFiles()
-            .findAll { it.name.endsWith('.jar')
-                       && !it.name.contains('-sources')
-                       && !it.name.contains('-dev')
-                       && !it.name.contains('-javadoc') }
+            .findAll { it.name.endsWith('.jar') && !it.name.contains('-sources') && !it.name.contains('-dev') && !it.name.contains('-javadoc') }
             .max { it.lastModified() }
     if (latestJar != null && (!mawDestFile.exists() || latestJar.lastModified() > mawDestFile.lastModified())) {
         mawDestDir.mkdirs()
@@ -377,16 +380,30 @@ dependencies {
     compileOnly fg.deobf("mezz.jei:jei-1.20.1-forge-api:${jei_version}")
     runtimeOnly fg.deobf("mezz.jei:jei-1.20.1-forge:${jei_version}")
 
-    // Mekanism (任意、 dev runtime のみ) — withMekanism フラグで切り替え。
-    // 本 mod の FE 出力は Forge built-in なので Mekanism 非依存でビルドできる。
-    // dev 実行時にユニバーサルケーブルでの吸出しを確認したい時だけ ON にする。
+    // Mekanism (任意、 dev runtime + Mekanism native API 統合のための compile 両方)。
+    // 本 mod の FE 出力は Forge built-in なので **Mekanism 非依存でビルドできる**。
+    // `IStrictEnergyHandler` 連携が必要な場合のみ withMekanism=true で有効化。
+    //
     //   libs/local/mekanism/<ver>/mekanism-<ver>.jar があればローカル jar を採用 (オフラインOK)、
     //   無ければ CurseMaven から fetch (要オンライン or 既キャッシュ)。
-    if (withMekanism) {
-        if (mekanismLocalFile.exists()) {
+    //
+    // compileOnly + runtimeOnly:
+    //   compileOnly  → MekanismEnergyAdapter が IStrictEnergyHandler を実装するために必要
+    //   runtimeOnly  → dev 実行時に Mekanism mod 本体を読み込む
+    // compileOnly は常に追加 (compat ソースのコンパイルに必須)。 runtime は withMekanism で制御。
+    // 配布 jar には Mekanism は同梱されない (compileOnly のみ)。 連携 class は class isolation で
+    // Mekanism 未導入環境では一切ロードされず NoClassDefFoundError にならない。
+    if (mekanismLocalFile.exists()) {
+        compileOnly fg.deobf("local:mekanism:${mekanism_local_version}")
+        if (withMekanism) {
             runtimeOnly fg.deobf("local:mekanism:${mekanism_local_version}")
-            logger.lifecycle("[backpack-arsenal] Mekanism runtime ON (local jar: ${mekanismLocalFile.name})")
+            logger.lifecycle("[backpack-arsenal] Mekanism runtime ON (local jar)")
         } else {
+            logger.lifecycle("[backpack-arsenal] Mekanism compileOnly only (use -PwithMekanism=true for runtime)")
+        }
+    } else {
+        compileOnly fg.deobf("curse.maven:mekanism-268560:${mekanism_curse_file}")
+        if (withMekanism) {
             runtimeOnly fg.deobf("curse.maven:mekanism-268560:${mekanism_curse_file}")
             logger.lifecycle("[backpack-arsenal] Mekanism runtime ON (curse fileId=${mekanism_curse_file})")
         }
