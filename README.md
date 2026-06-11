@@ -118,6 +118,26 @@ Guard 等に専念。
 設定変更は `<minecraft>/config/backpack_arsenal.json` を編集し、`/backpack_arsenal reload`
 でホットリロード可。
 
+#### Mekanism native 連携 ( `IStrictEnergyHandler` )
+
+Mekanism がロードされている場合は、 上記の Forge FE に加えて Mekanism 専用の
+`IStrictEnergyHandler` capability も自動で attach されます ( PR #25 )。
+
+- Mekanism cube / Universal Cable / Induction Matrix は backpack を **Mekanism native
+  の発電機** として認識し、 Forge FE ↔ Joules ブリッジを経由せず直接連携します
+- 値の換算は **1 FE = 1 J** ( = そのまま渡す )。 Mekanism 標準の `JoulesToForge`
+  ( 2.5 J = 1 FE ) よりシビアなレートになるので、 厳密に合わせたければ Mekanism
+  config を `JoulesToForge = 1.0` にする
+- 実装: [`compat/mekanism/MekanismEnergyAdapter`](src/main/java/backpackarsenal/compat/mekanism/MekanismEnergyAdapter.java)
+  と [`MekanismCompat`](src/main/java/backpackarsenal/compat/mekanism/MekanismCompat.java)
+  — class isolation により Mekanism 未導入環境では一切ロードされず、 配布 jar に
+  Mekanism は同梱されません ( compileOnly )
+
+**Mekanism Energy Cube に直結する場合の注意**: cube は side config がデフォルト
+全側面 OFF のため、 backpack に向かう面を **Input** に明示設定する必要があります
+( cube GUI → Side Config → backpack を向いた面を青枠 = Input にする )。
+Universal Cable 経由なら設定不要。
+
 ---
 
 ## バックパック型 鞘 (saya) モデル
