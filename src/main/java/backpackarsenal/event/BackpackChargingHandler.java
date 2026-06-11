@@ -99,6 +99,10 @@ public class BackpackChargingHandler {
             chargeKatanasInHandler(handler, chargeAmount));
     }
 
+    /** 手持ち backpack 内の Mekanism tool 等 ( IEnergyStorage cap 持ち ) に 1 回で
+     *  渡せる FE 量。 voltaic_blade と同じ感覚で 10 tick あたり ~2000 FE = 200 FE/tick = 4000 FE/秒。 */
+    private static final int HELD_FE_PER_INTERVAL = 2000;
+
     /** IItemHandler を再帰的に走査（ネストしたバックパックにも対応） */
     private static void chargeKatanasInHandler(IItemHandler handler, int chargeAmount) {
         for (int slot = 0; slot < handler.getSlots(); slot++) {
@@ -119,6 +123,18 @@ public class BackpackChargingHandler {
             } else if (isSophisticatedBackpack(inner)) {
                 // ネストされたバックパックの中身もチャージ対象に
                 chargeAllKatanasInside(inner, chargeAmount);
+            } else {
+                // Mekanism tool / 他 mod のバッテリ式アイテム ( IEnergyStorage cap 持ち ) も充電。
+                // 設置 backpack と違って FE バッファが無いので一定量を直接渡す。
+                inner.getCapability(net.minecraftforge.common.capabilities.ForgeCapabilities.ENERGY)
+                    .ifPresent(target -> {
+                        if (target.canReceive() && target.getEnergyStored() < target.getMaxEnergyStored()) {
+                            target.receiveEnergy(HELD_FE_PER_INTERVAL, false);
+                        }
+                    });
+                if (handler instanceof IItemHandlerModifiable mod) {
+                    mod.setStackInSlot(slot, inner);
+                }
             }
         }
     }

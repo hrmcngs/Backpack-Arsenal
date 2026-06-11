@@ -21,6 +21,10 @@ public class BackpackFeProvider implements ICapabilitySerializable<CompoundTag> 
 
     public final BackpackFeStorage storage;
     private final LazyOptional<IEnergyStorage> opt;
+    /** 隣接ブロック更新を 1 回だけ発火させたかのフラグ。
+     *  Mekanism cable は隣接 BE に capability が「後から」付いたことに気付けないため、
+     *  level がセットされた最初の tick で neighbor update を送って再検出させる。 */
+    public boolean notifiedNeighbors = false;
 
     public BackpackFeProvider(int capacity, int maxExtract) {
         this.storage = new BackpackFeStorage(capacity, maxExtract);
