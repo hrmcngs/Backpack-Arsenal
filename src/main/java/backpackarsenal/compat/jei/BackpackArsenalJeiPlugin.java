@@ -3,6 +3,7 @@ package backpackarsenal.compat.jei;
 import backpackarsenal.BackpackArsenalMod;
 import backpackarsenal.init.ArsenalItems;
 import backpackarsenal.item.VoltaicBladeItem;
+import backpackarsenal.upgrade.VoltaicGrowthUpgradeItem;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
 import mezz.jei.api.constants.RecipeTypes;
@@ -64,6 +65,24 @@ public class BackpackArsenalJeiPlugin implements IModPlugin {
             new ResourceLocation(BackpackArsenalMod.MODID, "anvil/shears_strip")
         ));
 
+        // 成長型 charger upgrade の anvil レシピ。 フラットコスト ( level に依らず一定 )。
+        //   1 dust = 1 level、 1 block = 9 levels ( 1 click で消費 )。
+        //   サバイバルでは XP 39 lvl 上限で 1 click あたり最大 39 levels まで強化可能。
+        // JEI 表示は代表 1 例ずつ ( Lv 0 → 1, Lv 0 → 9 )。
+        final int dustPerLevel = VoltaicGrowthUpgradeItem.REDSTONE_COST_PER_LEVEL;
+        anvilRecipes.add(factory.createAnvilRecipe(
+            growthChargerAt(0),
+            List.of(new ItemStack(net.minecraft.world.item.Items.REDSTONE, dustPerLevel)),
+            List.of(growthChargerAt(dustPerLevel)),
+            new ResourceLocation(BackpackArsenalMod.MODID, "anvil/growth_charger_per_dust")
+        ));
+        anvilRecipes.add(factory.createAnvilRecipe(
+            growthChargerAt(0),
+            List.of(new ItemStack(net.minecraft.world.item.Items.REDSTONE_BLOCK, 1)),
+            List.of(growthChargerAt(9 / dustPerLevel)),
+            new ResourceLocation(BackpackArsenalMod.MODID, "anvil/growth_charger_per_block")
+        ));
+
         registration.addRecipes(RecipeTypes.ANVIL, anvilRecipes);
 
         // Item info (JEI の "ℹ" タブ)
@@ -89,6 +108,18 @@ public class BackpackArsenalJeiPlugin implements IModPlugin {
             new ItemStack(ArsenalItems.VOLTAIC_CHARGER_UPGRADE.get()),
             VanillaTypes.ITEM_STACK,
             Component.translatable("jei.backpack_arsenal.voltaic_charger_upgrade.info"));
+
+        registration.addIngredientInfo(
+            growthChargerAt(0),
+            VanillaTypes.ITEM_STACK,
+            Component.translatable("jei.backpack_arsenal.voltaic_growth_charger_upgrade.info"));
+    }
+
+    /** 指定 level の growth charger upgrade itemstack を作る。 */
+    private static ItemStack growthChargerAt(int level) {
+        ItemStack s = new ItemStack(ArsenalItems.VOLTAIC_GROWTH_CHARGER_UPGRADE.get());
+        if (level > 0) VoltaicGrowthUpgradeItem.setLevel(s, level);
+        return s;
     }
 
     /** 1 capacitor tier について stage 0→1 .. 4→5 の 5 recipe を生成。 stage が進むと

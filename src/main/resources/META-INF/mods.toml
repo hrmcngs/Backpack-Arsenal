@@ -63,6 +63,15 @@ authors="hiromichi-ngs"
     ordering="AFTER"
     side="BOTH"
 
+# Mekanism（必須）— 設置 backpack の FE 発電と Mekanism native ( IStrictEnergyHandler ) 連携。
+# FE 発電が機能の核なので Mekanism を絶対前提として扱う。
+[[dependencies.backpack_arsenal]]
+    modId="mekanism"
+    mandatory=true
+    versionRange="[10.4.0,)"
+    ordering="AFTER"
+    side="BOTH"
+
 # JEI（任意）— レシピUI 連携
 [[dependencies.backpack_arsenal]]
     modId="jei"

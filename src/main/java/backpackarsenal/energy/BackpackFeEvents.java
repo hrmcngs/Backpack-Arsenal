@@ -53,6 +53,14 @@ public class BackpackFeEvents {
     private static final Map<BlockEntity, BackpackFeProvider> tracked =
         Collections.synchronizedMap(new WeakHashMap<>());
 
+    /** ArsenalBackpackContainer から発電量を表示するために BE → Provider を引く lookup。 */
+    public static BackpackFeProvider getProvider(BlockEntity be) {
+        if (be == null) return null;
+        synchronized (tracked) {
+            return tracked.get(be);
+        }
+    }
+
     /** voltaic_blade ItemStack に IEnergyStorage を attach。 Mekanism cube / 他 FE 充電器で
      *  blade を充電できるようにする。 */
     @SubscribeEvent
@@ -78,6 +86,8 @@ public class BackpackFeEvents {
         event.addCapability(CAP_KEY, provider);
         event.addListener(provider::invalidate);
         tracked.put(be, provider);
+        // notify pulse 開始 — onLevelTickFast がこれを見て走り出す
+        pendingNotifyCount.incrementAndGet();
 
         // SB の BackpackBlockEntity#getCapability(ENERGY, side) は private な
         // {@code energyStorageCap} (battery upgrade 用) を必ず先に返すため、
@@ -91,10 +101,6 @@ public class BackpackFeEvents {
         // Forge FE ↔ Joules ブリッジ ( config に依存) を経由せず直接連携する。
         // Mekanism 未導入環境では何もしない ( class isolation で NoClassDefFoundError を回避)。
         backpackarsenal.compat.mekanism.MekanismCompat.tryAttachStrictEnergy(event, provider);
-
-        BackpackArsenalMod.LOGGER.info(
-            "[backpack_arsenal] FE cap attached to BE @ {} (tracked={})",
-            be.getBlockPos(), tracked.size());
     }
 
     /** SB BackpackBlockEntity の {@code energyStorageCap} field を reflection で
@@ -118,13 +124,67 @@ public class BackpackFeEvents {
             field.setAccessible(true);
             LazyOptional<IEnergyStorage> opt = LazyOptional.of(() -> provider.storage);
             field.set(be, opt);
-            BackpackArsenalMod.LOGGER.info(
-                "[backpack_arsenal] injected our FE storage into SB BackpackBlockEntity.energyStorageCap (cls={})",
-                be.getClass().getSimpleName());
         } catch (Throwable t) {
             BackpackArsenalMod.LOGGER.warn(
                 "[backpack_arsenal] failed to inject FE cap into SB BE: {}", t.toString());
         }
+    }
+
+    /** notify pulse が pending の BE 総数。 0 なら onLevelTickFast を即 return できる ( O(1) )。
+     *  Attach 時に +1、 各 BE が pulse 完了したら -1。 */
+    private static final java.util.concurrent.atomic.AtomicInteger pendingNotifyCount =
+        new java.util.concurrent.atomic.AtomicInteger(0);
+
+    /**
+     * 毎 tick 走る軽量ハンドラ。 二つの責務:
+     *   1. 隣接通知 ( pending pulse のみ、 0 のときは skip )
+     *   2. per-tick 発電 + per-tick push ( tracked が空でなければ常に )
+     *
+     * per-tick 発電にする理由: 10-tick gate でバルク発電すると cable 視点で
+     * "発電→吸い切る→idle 9 tick→発電" を繰り返し input rate が 0 / N FE/t を
+     * 行き来する。 毎 tick 同じ量を加算すれば安定供給になる。
+     *
+     * 重いスロットスキャン ( chargeBladesAndReport / distributeFeToItemsInside ) は
+     * 引き続き 10-tick gate に残し、 fastTick は加算と push のみで軽量に保つ。
+     */
+    @SubscribeEvent
+    public static void onLevelTickFast(TickEvent.LevelTickEvent event) {
+        if (event.phase != TickEvent.Phase.END) return;
+        if (event.level.isClientSide) return;
+        if (tracked.isEmpty()) return;
+
+        boolean hasPendingNotify = pendingNotifyCount.get() > 0;
+
+        synchronized (tracked) {
+            Iterator<Map.Entry<BlockEntity, BackpackFeProvider>> it = tracked.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<BlockEntity, BackpackFeProvider> e = it.next();
+                BlockEntity be = e.getKey();
+                BackpackFeProvider provider = e.getValue();
+                if (be == null || be.isRemoved()) continue;
+                if (be.getLevel() != event.level) continue;
+
+                // 1) notify pulse 進行
+                if (hasPendingNotify && provider.notifyTicksRemaining > 0) {
+                    provider.notifyTicksRemaining--;
+                    event.level.updateNeighborsAt(be.getBlockPos(), be.getBlockState().getBlock());
+                    if (provider.notifyTicksRemaining == 0) {
+                        pendingNotifyCount.decrementAndGet();
+                    }
+                }
+
+                // 2) per-tick 発電 ( blade 不在なら cachedFePerTick は 0 )
+                if (provider.cachedFePerTick > 0) {
+                    provider.storage.generate(provider.cachedFePerTick);
+                }
+
+                // 3) 隣接 push ( cable / cube / 他 mod の FE 機械への分配 )。 storage 空なら skip。
+                if (provider.storage.getEnergyStored() > 0) {
+                    pushFeToNeighbors(be, provider);
+                }
+            }
+        }
+
     }
 
     @SubscribeEvent
@@ -135,10 +195,6 @@ public class BackpackFeEvents {
 
         int baseChargePerInterval = VoltaicBladeItem.CHARGE_PER_TICK_IN_BACKPACK * 10;
         int baseFePerInterval = ArsenalBackpackConfig.feGenPerTick * 10;
-        int totalGenerated = 0;
-        int ticked = 0;
-        // 診断用: tick したけど発電 0 だった BE の状態を 1 つだけ拾う
-        String idleReason = null;
 
         synchronized (tracked) {
             Iterator<Map.Entry<BlockEntity, BackpackFeProvider>> it = tracked.entrySet().iterator();
@@ -160,61 +216,33 @@ public class BackpackFeEvents {
                 int chargePerInterval = baseChargePerInterval * multiplier;
                 int fePerInterval = baseFePerInterval * multiplier;
 
-                // Mekanism cable 等への 1 回限りの再検出通知。
-                // AttachCapabilitiesEvent は BE constructor 中で level==null なので
-                // 通知できない → 最初の tick で実行する。
-                if (!provider.notifiedNeighbors && be.getLevel() != null) {
-                    provider.notifiedNeighbors = true;
-                    be.getLevel().updateNeighborsAt(be.getBlockPos(), be.getBlockState().getBlock());
-                    BackpackArsenalMod.LOGGER.info(
-                        "[backpack_arsenal] notified neighbors about FE provider @ {}",
-                        be.getBlockPos());
-                }
+                // 隣接通知 は別ハンドラ {@link #onLevelTickFast} で 毎 tick 実行する。
+                // ここ (10 tick gate 内) ではやらない。
 
-                final int[] genThisTick = {0};
-                final String[] reason = {null};
+                final boolean[] bladePresent = {false};
                 var handlerOpt = be.getCapability(ForgeCapabilities.ITEM_HANDLER);
-                if (!handlerOpt.isPresent()) {
-                    if (idleReason == null) idleReason = "BE has no ITEM_HANDLER cap @ " + be.getBlockPos();
-                } else {
-                    handlerOpt.ifPresent(handler -> {
-                        ChargeReport rep = chargeBladesAndReport(handler, chargePerInterval);
-                        if (rep.chargedAny) {
-                            genThisTick[0] = provider.storage.generate(fePerInterval);
-                        } else {
-                            reason[0] = String.format("@ %s: %d slots scanned, %d blades found, %d already full, storage=%d/%d",
-                                be.getBlockPos(), rep.slotsScanned, rep.bladesFound, rep.bladesAlreadyFull,
-                                provider.storage.getEnergyStored(), provider.storage.getMaxEnergyStored());
-                        }
-                    });
-                    if (idleReason == null && reason[0] != null) idleReason = reason[0];
-                }
-                if (genThisTick[0] > 0) {
-                    totalGenerated += genThisTick[0];
-                    ticked++;
-                }
+                handlerOpt.ifPresent(handler -> {
+                    ChargeReport rep = chargeBladesAndReport(handler, chargePerInterval);
+                    // 発電条件: backpack 内に voltaic_blade が 1 本でも存在すれば ( 満タンでも OK )。
+                    //   旧仕様は "充電できた tick だけ発電" だったが、 blade が満タン状態で
+                    //   置いてあるだけでも storage が貯まらないのは非直感的なので緩和。
+                    // この 10-tick gate でのバルク発電は廃止し、 per-tick fastTick で
+                    // {@link BackpackFeProvider#cachedFePerTick} を毎 tick 加算する。
+                    if (rep.bladesFound > 0) bladePresent[0] = true;
+                });
+                // UI 用: blade あり時は理論最大レート ( base × multiplier ) を表示する。
+                // 実際の生成量はバッファ空き容量で頭打ちになるので、 upgrade を
+                // 増やしてもバッファが満タンだと "5 FE/s" 等にしか見えず混乱する。
+                // 代わりに fePerInterval ( storage 制限抜き ) を見せて upgrade 効果を可視化する。
+                provider.lastGenPerInterval = bladePresent[0] ? fePerInterval : 0;
+                // per-tick 発電量も同時に更新 ( fastTick が毎 tick 使う )。
+                provider.cachedFePerTick = bladePresent[0] ? (fePerInterval / 10) : 0;
 
                 // 中の Mekanism tool 等 (IEnergyStorage cap 持ち) に FE を配布。
                 // voltaic_blade は直接充電してるのでスキップ。
                 handlerOpt.ifPresent(handler -> distributeFeToItemsInside(handler, provider.storage));
 
-                // 隣接 FE 受け取り手に PUSH (Mekanism cable / 直接 cube / 他 mod の FE 機械)。
-                // PULL に頼らない発電機の標準パターン。
-                pushFeToNeighbors(be, provider);
-            }
-        }
-
-        // 動作確認用ログ — 2 秒に 1 回 (40 tick おき)。
-        // 発電してれば "generated:" を、ゼロなら理由を出す。
-        if (event.level.getGameTime() % 40 == 0 && !tracked.isEmpty()) {
-            if (ticked > 0) {
-                BackpackArsenalMod.LOGGER.info(
-                    "[backpack_arsenal] FE generated: {} FE across {} BE(s) (tracked={})",
-                    totalGenerated, ticked, tracked.size());
-            } else if (idleReason != null) {
-                BackpackArsenalMod.LOGGER.info(
-                    "[backpack_arsenal] FE idle (tracked={}): {}",
-                    tracked.size(), idleReason);
+                // 隣接 push と発電は per-tick で fastTick が処理する。 ここではしない。
             }
         }
     }
@@ -229,9 +257,12 @@ public class BackpackFeEvents {
         try {
             var wrapper = sbBe.getBackpackWrapper();
             if (wrapper == null) return 0;
-            var matched = wrapper.getUpgradeHandler().getTypeWrappers(VoltaicChargerUpgradeItem.TYPE);
             int s = 0;
-            for (var w : matched) {
+            for (var w : wrapper.getUpgradeHandler().getTypeWrappers(VoltaicChargerUpgradeItem.TYPE)) {
+                if (w != null && w.isEnabled()) s += w.getMultiplierContribution();
+            }
+            for (var w : wrapper.getUpgradeHandler().getTypeWrappers(
+                    backpackarsenal.upgrade.VoltaicGrowthUpgradeItem.TYPE)) {
                 if (w != null && w.isEnabled()) s += w.getMultiplierContribution();
             }
             return s;
@@ -274,65 +305,23 @@ public class BackpackFeEvents {
     }
 
     /** 隣接 6 方向の FE 受け取り手に PUSH。 storage に貯まってる分を上限まで押し込む。 */
-    private static long lastPushLogMs = 0;
-    private static long lastDiagLogMs = 0;
     private static void pushFeToNeighbors(BlockEntity be, BackpackFeProvider provider) {
         Level level = be.getLevel();
         if (level == null) return;
         if (provider.storage.getEnergyStored() <= 0) return;
 
         BlockPos pos = be.getBlockPos();
-        int totalPushed = 0;
-        StringBuilder diag = new StringBuilder();
         for (Direction dir : Direction.values()) {
             if (provider.storage.getEnergyStored() <= 0) break;
-            BlockPos adjPos = pos.relative(dir);
-            BlockEntity adj = level.getBlockEntity(adjPos);
-            if (adj == null) {
-                // 隣接にブロックは有るけど BE が無い場合がある (vanilla block 等)
-                diag.append(dir.getName()).append("=no-be ");
-                continue;
-            }
-            String adjClass = adj.getClass().getSimpleName();
-            var capOpt = adj.getCapability(ForgeCapabilities.ENERGY, dir.getOpposite());
-            if (!capOpt.isPresent()) {
-                diag.append(dir.getName()).append("=").append(adjClass).append("(no-cap) ");
-                continue;
-            }
-            int pushed = capOpt.map(target -> {
-                if (!target.canReceive()) return -1; // -1 でフラグ
+            BlockEntity adj = level.getBlockEntity(pos.relative(dir));
+            if (adj == null) continue;
+            adj.getCapability(ForgeCapabilities.ENERGY, dir.getOpposite()).ifPresent(target -> {
+                if (!target.canReceive()) return;
                 int available = provider.storage.extractEnergy(Integer.MAX_VALUE, true);
-                if (available <= 0) return 0;
+                if (available <= 0) return;
                 int accepted = target.receiveEnergy(available, false);
                 if (accepted > 0) provider.storage.extractEnergy(accepted, false);
-                return accepted;
-            }).orElse(0);
-            if (pushed == -1) {
-                diag.append(dir.getName()).append("=").append(adjClass).append("(no-receive) ");
-            } else if (pushed > 0) {
-                totalPushed += pushed;
-                diag.append(dir.getName()).append("=").append(adjClass).append("(+").append(pushed).append(") ");
-            } else {
-                diag.append(dir.getName()).append("=").append(adjClass).append("(accepted=0) ");
-            }
-        }
-
-        long now = System.currentTimeMillis();
-        if (totalPushed > 0 && now - lastPushLogMs > 4000) {
-            lastPushLogMs = now;
-            BackpackArsenalMod.LOGGER.info(
-                "[backpack_arsenal] FE pushed: {} FE (storage {}/{}) — {}",
-                totalPushed, provider.storage.getEnergyStored(),
-                provider.storage.getMaxEnergyStored(), diag.toString().trim());
-        } else if (totalPushed == 0 && now - lastDiagLogMs > 4000
-                   && provider.storage.getEnergyStored() > 0) {
-            // FE は貯まってるのに 1 つも送れない時の診断ログ
-            lastDiagLogMs = now;
-            BackpackArsenalMod.LOGGER.info(
-                "[backpack_arsenal] FE push had no takers (storage {}/{}): {}",
-                provider.storage.getEnergyStored(),
-                provider.storage.getMaxEnergyStored(),
-                diag.length() == 0 ? "no adjacent blocks" : diag.toString().trim());
+            });
         }
     }
 

@@ -27,13 +27,9 @@ public final class ChestBackpackLayerRegister {
 
     @SubscribeEvent
     public static void onAddLayers(EntityRenderersEvent.AddLayers event) {
-        int added = 0;
-        // default skin (steve)
-        if (addPlayerLayer(event, "default")) added++;
-        // slim skin (alex)
-        if (addPlayerLayer(event, "slim")) added++;
-        BackpackArsenalMod.LOGGER.info(
-            "[backpack_arsenal] ChestBackpackLayer attached to {} player renderer variant(s)", added);
+        // default skin (steve) + slim skin (alex) の両方に layer を追加。
+        addPlayerLayer(event, "default");
+        addPlayerLayer(event, "slim");
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

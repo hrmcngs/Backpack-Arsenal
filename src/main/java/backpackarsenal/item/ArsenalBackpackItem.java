@@ -172,9 +172,6 @@ public class ArsenalBackpackItem extends BackpackItem {
     @Override
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
         ItemStack stack = player.getItemInHand(hand);
-        backpackarsenal.BackpackArsenalMod.LOGGER.info(
-            "[backpack_arsenal] use() called: side={}, hand={}, item={}",
-            level.isClientSide ? "CLIENT" : "SERVER", hand, stack.getItem());
         if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
             try {
                 String handlerName = (hand == InteractionHand.MAIN_HAND) ? "main" : "offhand";
@@ -184,15 +181,9 @@ public class ArsenalBackpackItem extends BackpackItem {
                 BackpackContext.Item ctx = new BackpackContext.Item(handlerName, slotIndex);
 
                 SimpleMenuProvider provider = new SimpleMenuProvider(
-                    (containerId, inv, p) -> {
-                        backpackarsenal.BackpackArsenalMod.LOGGER.info(
-                            "[backpack_arsenal] MenuConstructor invoked: containerId={}", containerId);
-                        return new ArsenalBackpackContainer(containerId, p, ctx);
-                    },
+                    (containerId, inv, p) -> new ArsenalBackpackContainer(containerId, p, ctx),
                     stack.getHoverName()
                 );
-                backpackarsenal.BackpackArsenalMod.LOGGER.info(
-                    "[backpack_arsenal] Calling NetworkHooks.openScreen for slot={}", slotIndex);
                 // 重要: ctx::toBuffer (=type marker + addToBuffer) を使う。
                 // ctx::addToBuffer だと ContextType marker が書かれず、client の
                 // BackpackContext.fromBuffer が dispatch table を解釈できず silent crash する。

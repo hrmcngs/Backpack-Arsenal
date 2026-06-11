@@ -36,26 +36,33 @@ public class BackpackChargingHandler {
     /** Sophisticated Backpacks の modid */
     private static final String SB_MODID = "sophisticatedbackpacks";
 
+    /** saya overlay 用同期は毎 tick やる必要が無いので、 こちらも軽く間引く。
+     *  4 tick = 0.2 秒 ごとなら backpack 内容変更後の追従はほぼ即時。 */
+    private static final int SAYA_SYNC_INTERVAL_TICKS = 4;
+
     @SubscribeEvent
     public static void onPlayerTick(TickEvent.PlayerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         if (event.player.level().isClientSide) return;
 
         Player player = event.player;
-        boolean isChargeTick = (player.tickCount % CHARGE_INTERVAL_TICKS == 0);
+        int tc = player.tickCount;
+        boolean isChargeTick = (tc % CHARGE_INTERVAL_TICKS == 0);
+        boolean isSayaTick   = (tc % SAYA_SYNC_INTERVAL_TICKS == 0);
+        // 両方 false の tick は inventory スキャン自体スキップ ( 4 / 5 の確率で early-out )。
+        if (!isChargeTick && !isSayaTick) return;
+
         int baseCharge = VoltaicBladeItem.CHARGE_PER_TICK_IN_BACKPACK * CHARGE_INTERVAL_TICKS;
 
-        // inventory + Curios "back" 走査 (SB バニラ + ArsenalBackpack 両対象)。
-        // 充電 (重い) は CHARGE_INTERVAL_TICKS 毎、 saya overlay 用の本数同期 (軽い) は
-        // 毎 tick 実行する。 saya モデルが backpack 内容の変化に追従するタイミングを早く
-        // するため。 syncVoltaicCountToNbt は count 変化時のみ NBT 書き込みするので
-        // 毎 tick 呼んでも spam しない。
+        // inventory + Curios "back" 走査 ( SB バニラ + ArsenalBackpack 両対象 )。
+        // 充電 ( 重い ) は CHARGE_INTERVAL_TICKS 毎、 saya overlay 用の本数同期は
+        // SAYA_SYNC_INTERVAL_TICKS 毎。
         backpackarsenal.util.BackpackScanner.forEachAnyBackpack(player, stack -> {
             if (isChargeTick) {
                 int multiplier = 1 + sumVoltaicChargerContributions(stack);
                 chargeAllKatanasInside(stack, baseCharge * multiplier);
             }
-            if (backpackarsenal.util.BackpackScanner.isArsenalBackpack(stack)) {
+            if (isSayaTick && backpackarsenal.util.BackpackScanner.isArsenalBackpack(stack)) {
                 backpackarsenal.item.ArsenalBackpackItem.syncVoltaicCountToNbt(stack);
             }
         });
@@ -76,10 +83,15 @@ public class BackpackChargingHandler {
         int[] sum = {0};
         capOpt.ifPresent(wrapper -> {
             try {
-                var matched = wrapper.getUpgradeHandler().getTypeWrappers(
-                    backpackarsenal.upgrade.VoltaicChargerUpgradeItem.TYPE);
                 int s = 0;
-                for (var w : matched) {
+                // 既存の固定 tier charger
+                for (var w : wrapper.getUpgradeHandler().getTypeWrappers(
+                        backpackarsenal.upgrade.VoltaicChargerUpgradeItem.TYPE)) {
+                    if (w != null && w.isEnabled()) s += w.getMultiplierContribution();
+                }
+                // 成長型 charger ( level 可変 )
+                for (var w : wrapper.getUpgradeHandler().getTypeWrappers(
+                        backpackarsenal.upgrade.VoltaicGrowthUpgradeItem.TYPE)) {
                     if (w != null && w.isEnabled()) s += w.getMultiplierContribution();
                 }
                 sum[0] = s;

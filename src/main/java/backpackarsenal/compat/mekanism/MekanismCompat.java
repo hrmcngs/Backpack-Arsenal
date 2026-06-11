@@ -72,9 +72,6 @@ public final class MekanismCompat {
         };
         event.addCapability(STRICT_ENERGY_KEY, mekProvider);
         event.addListener(opt::invalidate);
-        BackpackArsenalMod.LOGGER.info(
-            "[backpack_arsenal] attached Mekanism STRICT_ENERGY cap to BE @ {}",
-            event.getObject().getBlockPos());
     }
 
     /** {@code mekanism.common.capabilities.Capabilities.STRICT_ENERGY} を解決。
