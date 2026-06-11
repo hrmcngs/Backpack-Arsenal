@@ -1,6 +1,5 @@
 package backpackarsenal.client.render;
 
-import backpackarsenal.BackpackArsenalMod;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.HumanoidModel;
@@ -27,11 +26,6 @@ import top.theillusivec4.curios.api.client.ICurioRenderer;
  */
 public class ArsenalBackpackCurioRenderer implements ICurioRenderer {
 
-    /** 初回呼び出し時に 1度だけログを出すための flag。 saya が出ない時の原因切り分け用:
-     *  - "render() called" のログが出ない → Curios renderer 登録自体が効いていない
-     *  - 出るが voltaicCount=0 → 通常スロット判定が拾えていない */
-    private static boolean diagLoggedRender = false;
-
     @Override
     public <T extends LivingEntity, M extends EntityModel<T>> void render(
             ItemStack stack,
@@ -52,14 +46,6 @@ public class ArsenalBackpackCurioRenderer implements ICurioRenderer {
         HumanoidModel<LivingEntity> humanoidModel = (HumanoidModel<LivingEntity>) entityModel;
         LivingEntity wearer = slotContext.entity();
         boolean wearsChestplate = !wearer.getItemBySlot(EquipmentSlot.CHEST).isEmpty();
-
-        if (!diagLoggedRender) {
-            diagLoggedRender = true;
-            BackpackArsenalMod.LOGGER.info(
-                "[backpack_arsenal] ArsenalBackpackCurioRenderer.render() first invocation: " +
-                "stack={}, wearer={}, chestplate={} (voltaic count is checked per-frame in SayaBackpackOverlay)",
-                stack.getItem(), wearer.getName().getString(), wearsChestplate);
-        }
 
         poseStack.pushPose();
         try {
