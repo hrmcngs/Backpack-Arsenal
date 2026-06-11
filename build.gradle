@@ -176,6 +176,31 @@ if (chosenReleaseType) {
 } else {
     version = baseResolvedVersion
 }
+
+// 4) 対話モードで選んだ version を gradle.properties に書き戻す。
+//    こうしておけば 次の CI run も同じ version (例: "1.0.2-beta") で build され、
+//    ローカル build/libs と CI 成果物 の名前が常に一致する。
+//    CI (isCi) や -Prelease_type / -Pmod_version_override 指定時は shouldPrompt が
+//    false なのでここに来ない = CI が gradle.properties を勝手に書き換えない。
+if (shouldPrompt) {
+    def gradleProps = file('gradle.properties')
+    if (gradleProps.exists()) {
+        def lines = gradleProps.readLines()
+        def replaced = false
+        def newLines = lines.collect { line ->
+            if (line ==~ /^\s*mod_version\s*=.*$/) {
+                replaced = true
+                return "mod_version=${version}"
+            }
+            return line
+        }
+        if (replaced && lines != newLines) {
+            gradleProps.text = newLines.join('\n') + '\n'
+            logger.lifecycle("[backpack-arsenal] persisted mod_version=${version} → gradle.properties")
+        }
+    }
+}
+
 group   = 'com.example.backpackarsenal'
 archivesBaseName = 'backpack-arsenal'
 
