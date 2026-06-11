@@ -5,6 +5,7 @@ import backpackarsenal.item.ArsenalBackpackItem;
 import backpackarsenal.item.VoltaicBladeItem;
 import backpackarsenal.item.VoltaicCapacitorUpgradeItem;
 import backpackarsenal.upgrade.VoltaicChargerUpgradeItem;
+import backpackarsenal.upgrade.VoltaicGrowthUpgradeItem;
 import net.minecraft.world.item.Item;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
@@ -41,6 +42,12 @@ public class ArsenalItems {
         REGISTRY.register("voltaic_charger_upgrade_tier_4", () -> new VoltaicChargerUpgradeItem(4));
     public static final RegistryObject<VoltaicChargerUpgradeItem> VOLTAIC_CHARGER_UPGRADE_TIER_5 =
         REGISTRY.register("voltaic_charger_upgrade_tier_5", () -> new VoltaicChargerUpgradeItem(5));
+
+    /** Voltaic Growth Charger Upgrade — アンビルで redstone を喰わせて level を無限に
+     *  上げられる、 成長型 charger。 Level 0 は寄与 0 で完全無効、 そこから level を
+     *  上げるごとに +1 寄与。 ハンドラ: {@link backpackarsenal.event.VoltaicGrowthAnvilHandler}。 */
+    public static final RegistryObject<VoltaicGrowthUpgradeItem> VOLTAIC_GROWTH_CHARGER_UPGRADE =
+        REGISTRY.register("voltaic_growth_charger_upgrade", VoltaicGrowthUpgradeItem::new);
 
     /** Voltaic Capacitor Upgrade tier I (+256/use)。 一番安価。 */
     public static final RegistryObject<VoltaicCapacitorUpgradeItem> VOLTAIC_CAPACITOR_UPGRADE_I =

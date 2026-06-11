@@ -1,0 +1,7 @@
+{
+  "_comment": "Voltaic Growth Charger Upgrade — 専用テクスチャ ( 緑系 + 右下 '+' )。 voltaic_charger_upgrade.png のグレースケール化 + 緑シフト変換で tools/gen_growth_texture.py 相当で生成可能。 編集する場合は textures/item/voltaic_growth_charger_upgrade.png を直接差し替え。",
+  "parent": "item/generated",
+  "textures": {
+    "layer0": "backpack_arsenal:item/voltaic_growth_charger_upgrade"
+  }
+}
