@@ -286,27 +286,36 @@ def sb_core_curse_file = '8143884'   // 1.20.1-1.3.38.1885
 // https://www.curseforge.com/minecraft/mc-mods/the-four-primitives-and-weapons/files
 def maw_curse_file     = '8074061'   // 1.20.1-2 release (2026-05 時点の最新)
 
-// Mekanism (CurseForge project id: 268560) — 任意、 dev で FE 連携をテストする用。
-// FE は Forge built-in (= Mekanism 無くてもコンパイル可) なので mekanism は runtimeOnly 扱い。
-//
-// 有効化方法 (どちらか):
-//   1) ./gradlew runClient -PwithMekanism=true
-//   2) gradle.properties に `withMekanism=true` を書く
+// Mekanism (CurseForge project id: 268560) — **必須前提**。 設置 backpack の FE 発電 +
+// native IStrictEnergyHandler 連携の核。 mods.toml で mandatory=true なので runtime に必ず居る。
 //
 // 取得元の解決順:
-//   1) libs/local/mekanism/<version>/mekanism-<version>.jar があれば優先 (= オフラインで使える)
-//   2) 無ければ CurseMaven から fileId で取得 (要オンライン or 既キャッシュ)
+//   1) libs/local/mekanism/<version>/mekanism-<version>.jar があれば優先 ( = オフラインで使える )
+//   2) 無ければ CurseMaven から fileId で取得 ( 要オンライン or 既キャッシュ )
 //
 // 最新 fileId は https://www.curseforge.com/minecraft/mc-mods/mekanism/files から確認し
 // `-Pmekanism_curse_file=NNNN` で上書き or 下の定数を書き換える。
-def withMekanism = (project.findProperty('withMekanism') ?: 'false').toString()
-        .toLowerCase() in ['true', '1', 'yes', 'on']
-// 旧 5710401 は CurseMaven から消えており CI で 404 になっていた。
-// 最新は cfwidget で確認: curl -sS https://api.cfwidget.com/268560?version=1.20.1
+//   cfwidget でも確認: curl -sS https://api.cfwidget.com/268560?version=1.20.1
 def mekanism_curse_file = (project.findProperty('mekanism_curse_file') ?: '6552911').toString()
 def mekanism_local_version = (project.findProperty('mekanism_local_version') ?: '1.20.1-10.4.16.80').toString()
 def mekanismLocalDir  = file("libs/local/mekanism/${mekanism_local_version}")
 def mekanismLocalFile = new File(mekanismLocalDir, "mekanism-${mekanism_local_version}.jar")
+
+// ===== Evolved Mekanism (CurseForge project id: 1230085) — 任意、 検証用 =====
+// Backpack Arsenal の FE / Mekanism native 連携を dev で検証するためだけのランタイム追加。
+// 配布 jar には影響しない ( runtimeOnly )。 Mekanism 本体は今や implementation 必須なので、
+// withEvolvedMekanism=true にすると EM が Mekanism と並走する。
+//
+// 有効化:
+//   ./gradlew runClient -PwithEvolvedMekanism=true
+//   or gradle.properties に `withEvolvedMekanism=true`
+//
+// file id は https://www.curseforge.com/minecraft/mc-mods/evolved-mekanism/files から、
+// `-PevolvedMekanism_curse_file=NNNN` で上書き可。
+def withEvolvedMekanism = (project.findProperty('withEvolvedMekanism') ?: 'false').toString()
+        .toLowerCase() in ['true', '1', 'yes', 'on']
+def evolvedMekanism_curse_file =
+        (project.findProperty('evolvedMekanism_curse_file') ?: '7599591').toString()
 
 minecraft {
     mappings channel: 'official', version: mc_version
@@ -382,42 +391,60 @@ dependencies {
     compileOnly fg.deobf("mezz.jei:jei-1.20.1-forge-api:${jei_version}")
     runtimeOnly fg.deobf("mezz.jei:jei-1.20.1-forge:${jei_version}")
 
-    // Mekanism (任意、 dev runtime + Mekanism native API 統合のための compile 両方)。
-    // 本 mod の FE 出力は Forge built-in なので **Mekanism 非依存でビルドできる**。
-    // `IStrictEnergyHandler` 連携が必要な場合のみ withMekanism=true で有効化。
+    // Mekanism ( 必須 ) — 設置 backpack の FE 発電と native IStrictEnergyHandler 連携。
+    // mods.toml で mandatory=true なので runtime に必ず居る必要がある → implementation で常時。
     //
-    //   libs/local/mekanism/<ver>/mekanism-<ver>.jar があればローカル jar を採用 (オフラインOK)、
-    //   無ければ CurseMaven から fetch (要オンライン or 既キャッシュ)。
+    //   libs/local/mekanism/<ver>/mekanism-<ver>.jar があればローカル jar を採用 ( オフライン OK )、
+    //   無ければ CurseMaven から fetch ( 要オンライン or 既キャッシュ )。
     //
-    // compileOnly + runtimeOnly:
-    //   compileOnly  → MekanismEnergyAdapter が IStrictEnergyHandler を実装するために必要
-    //   runtimeOnly  → dev 実行時に Mekanism mod 本体を読み込む
-    // compileOnly は常に追加 (compat ソースのコンパイルに必須)。 runtime は withMekanism で制御。
-    // 配布 jar には Mekanism は同梱されない (compileOnly のみ)。 連携 class は class isolation で
-    // Mekanism 未導入環境では一切ロードされず NoClassDefFoundError にならない。
+    // 配布 jar には Mekanism は同梱されないが、 mods.toml の依存宣言でランチャーが自動 download する。
+    // 連携 class は class isolation 経由で参照しているので、 万一 load 順が遅れても
+    // NoClassDefFoundError は出ない。
     if (mekanismLocalFile.exists()) {
-        compileOnly fg.deobf("local:mekanism:${mekanism_local_version}")
-        if (withMekanism) {
-            runtimeOnly fg.deobf("local:mekanism:${mekanism_local_version}")
-            logger.lifecycle("[backpack-arsenal] Mekanism runtime ON (local jar)")
-        } else {
-            logger.lifecycle("[backpack-arsenal] Mekanism compileOnly only (use -PwithMekanism=true for runtime)")
-        }
+        implementation fg.deobf("local:mekanism:${mekanism_local_version}")
+        logger.lifecycle("[backpack-arsenal] Mekanism: local jar (${mekanism_local_version})")
     } else {
-        compileOnly fg.deobf("curse.maven:mekanism-268560:${mekanism_curse_file}")
-        if (withMekanism) {
-            runtimeOnly fg.deobf("curse.maven:mekanism-268560:${mekanism_curse_file}")
-            logger.lifecycle("[backpack-arsenal] Mekanism runtime ON (curse fileId=${mekanism_curse_file})")
-        }
+        implementation fg.deobf("curse.maven:mekanism-268560:${mekanism_curse_file}")
+        logger.lifecycle("[backpack-arsenal] Mekanism: curse fileId=${mekanism_curse_file}")
+    }
+
+    // Evolved Mekanism ( 検証用 ) — runtimeOnly のみ、 compile はしない。
+    // EM は Mekanism 本体に依存しているので、 上で withMekanism=true にしてある時のみ実行可。
+    if (withEvolvedMekanism) {
+        runtimeOnly fg.deobf("curse.maven:evolved-mekanism-1230085:${evolvedMekanism_curse_file}")
+        logger.lifecycle(
+            "[backpack-arsenal] Evolved Mekanism runtime ON (curse fileId=${evolvedMekanism_curse_file})")
     }
 }
 
 processResources {
     inputs.property 'mc_version', mc_version
     inputs.property 'mod_version', version
+    // macOS の .DS_Store と Thumbs.db は jar に含めない。
+    exclude '**/.DS_Store', '**/Thumbs.db'
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
     filesMatching('META-INF/mods.toml') {
         expand 'mc_version': mc_version, 'mod_version': version
     }
+    // JSON ( models / blockstates / recipes / lang ) を minify して jar サイズ縮小。
+    // Forge / Mojang の JSON loader は空白を区別しないので動作は変わらない。
+    // mods.toml ( TOML ) と .mcmeta は対象外。
+    filesMatching([
+        '**/*.json',
+        '**/*.jsonc'
+    ]) {
+        filter { String line ->
+            // 行頭末尾のホワイトスペースだけ削る ( JSON 構文を壊さない最低限の minify )。
+            // 完全 minify ( 全空白除去 ) は文字列内 space を破壊するので避ける。
+            line.replaceAll('^\\s+', '').replaceAll('\\s+$', '')
+        }
+    }
+}
+
+// Jar task でも念のため .DS_Store / Thumbs.db を除外 ( 既に processResources で
+// 落ちてるが、 idea / eclipse プラグインが build 後にコピーするケースの保険 )。
+jar {
+    exclude '**/.DS_Store', '**/Thumbs.db'
 }
 
 // =====================================================================
