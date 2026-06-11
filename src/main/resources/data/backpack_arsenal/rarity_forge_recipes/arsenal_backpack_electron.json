@@ -1,0 +1,9 @@
+{
+  "_comment": "Arsenal Backpack (Electron) — レアリティ作業台レシピ。 3x3 で leather 8 + amethyst_block 1 (中心の電気コア)。 中心の amethyst で voltaic 充電機構の核を表現。",
+  "pattern": ["222", "212", "222"],
+  "key": {
+    "1": "minecraft:amethyst_block",
+    "2": "minecraft:leather"
+  },
+  "result": "backpack_arsenal:arsenal_backpack_electron"
+}

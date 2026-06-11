@@ -1,0 +1,10 @@
+{
+  "_comment": "Voltaic Blade — レアリティ作業台レシピ。 縦 3 マス並べ ( 刀身 → 中心 → 柄 のイメージ )。 top: copper_ingot (導電性切先), middle: amethyst_shard (電気晶), bottom: iron_ingot (柄頭)。",
+  "pattern": ["1", "2", "3"],
+  "key": {
+    "1": "minecraft:copper_ingot",
+    "2": "minecraft:amethyst_shard",
+    "3": "minecraft:iron_ingot"
+  },
+  "result": "backpack_arsenal:voltaic_blade"
+}
