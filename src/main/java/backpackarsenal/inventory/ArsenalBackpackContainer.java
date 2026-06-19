@@ -64,14 +64,31 @@ public class ArsenalBackpackContainer extends BackpackContainer {
     /** 直近 0.5 秒の発電量 (FE)。 FE/s = この値 × 2。 */
     public int feGenPerInterval() { return feGenPerIntervalClient; }
 
+    /** 直近の multiplierContribution 結果と それを 計算した nanoTime。 */
+    private int cachedMultiplierContribution = 0;
+    private long cachedMultiplierAtNs = 0L;
+    /** キャッシュ有効期間 ( 100 ms )。 UI 描画は 60-200 FPS で 走るが、 upgrade slot の
+     *  内容変更は player 操作なので 100 ms 遅延で 視覚的に 違和感ない一方、
+     *  実 計算回数は ~10 Hz まで 落ちて 大幅な CPU 節約になる。 */
+    private static final long MULTIPLIER_CACHE_TTL_NS = 100_000_000L;
+
     /** charger 倍率寄与合計 ( client 側で wrapper を直接読んで計算 )。 multiplier = 1 + これ。
-     *  held / placed 両対応。 DataSlot 経由は信頼性が低かったので毎呼び出し計算に変更。 */
+     *  held / placed 両対応。 DataSlot 経由は信頼性が低かったので 毎呼び出し計算に変更したが、
+     *  render() から 毎フレーム呼ばれる ホットパスなので、 100 ms TTL で 軽くキャッシュする。 */
     public int multiplierContribution() {
-        try {
-            return sumChargerContributions(capturedCtx.getBackpackWrapper(capturedPlayer));
-        } catch (Throwable t) {
-            return 0;
+        long now = System.nanoTime();
+        if (now - cachedMultiplierAtNs < MULTIPLIER_CACHE_TTL_NS) {
+            return cachedMultiplierContribution;
         }
+        int value;
+        try {
+            value = sumChargerContributions(capturedCtx.getBackpackWrapper(capturedPlayer));
+        } catch (Throwable t) {
+            value = 0;
+        }
+        cachedMultiplierContribution = value;
+        cachedMultiplierAtNs = now;
+        return value;
     }
 
     /**
