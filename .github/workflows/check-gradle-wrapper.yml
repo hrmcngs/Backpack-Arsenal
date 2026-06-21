@@ -22,7 +22,7 @@ jobs:
     name: 'Block Gradle wrapper >= 9.0'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: 'Validate distributionUrl is gradle-8.x'
         run: |

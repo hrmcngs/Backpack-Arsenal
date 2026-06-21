@@ -145,7 +145,7 @@ jobs:
       # ── 通常 type: ビルド → CF アップロード ────────────────────────────
       - name: 'Checkout (at issue sha)'
         if: steps.parse.outputs.skip != 'true' && steps.parse.outputs.release_type != 'test'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.parse.outputs.sha }}
           fetch-depth: 1
