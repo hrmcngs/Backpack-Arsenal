@@ -239,7 +239,7 @@ jobs:
       # actions/github-script は GITHUB_TOKEN を Octokit に直接渡してくれる純正 action。
       # gh CLI や curl で 401 が出る環境でも、 こちらは正しく auth されるケースが多い。
       - name: 'Create approval issue (github-script + Octokit)'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           DEFAULT_TYPE: ${{ needs.resolve.outputs.release_type }}
           JAR_NAME: ${{ needs.build.outputs.jar_name }}

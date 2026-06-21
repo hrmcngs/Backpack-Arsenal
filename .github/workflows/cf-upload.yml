@@ -46,7 +46,7 @@ jobs:
       # ── checkbox + metadata footer を解析 ─────────────────────────────
       - name: 'Parse issue body for release_type / sha'
         id: parse
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const issueNum = parseInt(process.env.ISSUE_NUMBER, 10);
@@ -103,7 +103,7 @@ jobs:
       # ── 無選択 close: upload skip + Issue に notify ──────────────────
       - name: 'Skip (no checkbox ticked)'
         if: steps.parse.outputs.skip == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const issueNum = parseInt(process.env.ISSUE_NUMBER, 10);
@@ -127,7 +127,7 @@ jobs:
       # ── test type: jar build せず skip ────────────────────────────────
       - name: 'Skip (release_type=test)'
         if: steps.parse.outputs.skip != 'true' && steps.parse.outputs.release_type == 'test'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const issueNum = parseInt(process.env.ISSUE_NUMBER, 10);
@@ -256,7 +256,7 @@ jobs:
 
       - name: 'Notify issue (upload failed)'
         if: failure() && steps.parse.outputs.skip != 'true' && steps.parse.outputs.release_type != 'test' && steps.cfupload.conclusion == 'failure'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const issueNum = parseInt(process.env.ISSUE_NUMBER, 10);
@@ -278,7 +278,7 @@ jobs:
 
       - name: 'Verify CurseForge response & notify issue'
         if: success() && steps.parse.outputs.skip != 'true' && steps.parse.outputs.release_type != 'test'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           JAR_PATH: ${{ env.JAR_PATH }}
           JAR_SIZE: ${{ env.JAR_SIZE }}
