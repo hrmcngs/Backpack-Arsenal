@@ -1,0 +1,56 @@
+name: Check Gradle wrapper version
+
+# ForgeGradle 6.x は Gradle 8.x 上限 ( 9.x で "Versions Gradle 9.0 and newer are
+# not supported yet" でビルド失敗 )。 dependabot の ignore ルールが過去 2 回 (PR #5,
+# PR #40) で素通りした実績があるため、 PR が "merge される前" に CI 側で 検証して
+# 落とす。 main への直 push 時も同じ check を 走らせて 異常な状態に気付けるようにする。
+
+on:
+  pull_request:
+    paths:
+      - 'gradle/wrapper/gradle-wrapper.properties'
+  push:
+    branches: [main]
+    paths:
+      - 'gradle/wrapper/gradle-wrapper.properties'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: 'Block Gradle wrapper >= 9.0'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: 'Validate distributionUrl is gradle-8.x'
+        run: |
+          set -euo pipefail
+          WRAPPER=gradle/wrapper/gradle-wrapper.properties
+          if [ ! -f "$WRAPPER" ]; then
+            echo "::error::$WRAPPER not found"
+            exit 1
+          fi
+
+          # distributionUrl 行から gradle-X.Y.Z-* の X を取り出す。
+          VERSION_LINE=$(grep -E '^distributionUrl=' "$WRAPPER" || true)
+          if [ -z "$VERSION_LINE" ]; then
+            echo "::error::distributionUrl 行が見つかりません"
+            exit 1
+          fi
+          echo "Found: $VERSION_LINE"
+
+          MAJOR=$(echo "$VERSION_LINE" | sed -nE 's/.*gradle-([0-9]+)\.[0-9.]+.*\.zip/\1/p')
+          if [ -z "$MAJOR" ]; then
+            echo "::error::distributionUrl から gradle major version を抽出できません: $VERSION_LINE"
+            exit 1
+          fi
+
+          if [ "$MAJOR" -ge 9 ]; then
+            echo "::error::Gradle ${MAJOR}.x は ForgeGradle 6.x 非対応です。8.x に戻してください。"
+            echo "::error::ForgeGradle 6 が Gradle 9 をサポートしたら .github/dependabot.yml の versions 制約を緩めて OK。"
+            exit 1
+          fi
+
+          echo "OK: Gradle major=$MAJOR ( ForgeGradle 6 と互換 )"
