@@ -39,10 +39,14 @@ updates:
       # patch (1.20.1-47.x.y) のみ手動更新する運用
       - dependency-name: "net.minecraftforge:forge"
 
-      # Gradle wrapper の major 上げを禁止 (ForgeGradle 6.x は Gradle 8.x 上限)
-      # 8.x 内の minor/patch update は許容
+      # Gradle wrapper の 9.x 以降を全面禁止 (ForgeGradle 6.x は Gradle 8.x 上限)。
+      # 8.x 内の patch (8.8 → 8.9 等) は許容するが 9.x への bump はブロックする。
+      # dependency-name の表記ゆれ ("gradle" / "gradle-wrapper") 両方に versions 制約を
+      # 効かせる ( 過去 PR #5 / PR #40 は update-types だけだと素通りした )。
       - dependency-name: "gradle"
-        update-types: ["version-update:semver-major"]
+        versions: [">=9.0"]
+      - dependency-name: "gradle-wrapper"
+        versions: [">=9.0"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
