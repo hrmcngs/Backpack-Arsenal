@@ -240,10 +240,15 @@ jobs:
         if: steps.parse.outputs.skip != 'true' && steps.parse.outputs.release_type != 'test'
         run: |
           echo "::notice::POST $(basename $JAR_PATH) ($JAR_SIZE) as $RELEASE_TYPE ..."
+          # 重要: metadata は --form-string を使う ( -F だと値中の ';' を curl が
+          # サブオプション区切り (例: ';type=...') と誤解釈して JSON を分裂させてしまい、
+          # CF が "Error in field `metadata`: Invalid JSON" (errorCode 1002) で 落ちる。
+          # 過去事象: commit subject に ';' を含む changelog (例: "bumps; bump to 1.0.4") を
+          # CHANGELOG として 詰めた時に再現。 --form-string は値を 完全 literal で扱うので安全。
           HTTP=$(curl --progress-bar \
             -o response.json -w "%{http_code}" \
             -H "X-Api-Token: $CF_TOKEN" \
-            -F "metadata=$METADATA" \
+            --form-string "metadata=$METADATA" \
             -F "file=@$JAR_PATH" \
             "https://minecraft.curseforge.com/api/projects/$CF_PROJECT_ID/upload-file")
           echo "::notice::upload HTTP $HTTP"
