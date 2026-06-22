@@ -100,8 +100,17 @@ jobs:
                     RELEASE_TYPE="alpha"
                   fi
                 fi
+              elif [[ "$PR_HEAD" == dependabot/* ]]; then
+                # dependabot は dep bump 専用なので 毎回 approval issue が立つと spammy。
+                # 必要なら workflow_dispatch で 手動 trigger する。
+                echo "::notice::push from dependabot PR ($PR_HEAD) — skip CF upload"
               else
-                echo "::notice::push from non-release PR (head='$PR_HEAD', e.g. dependabot) — skip CF upload"
+                # 通常 PR ( feat/* fix/* chore/* docs/* 等) は alpha approval issue を作る。
+                # 不要なら issue で 何も tick せず close すれば skip される ( cf-upload.yml が
+                # 「tick 無し close」 を 「キャンセル扱い」 として 何もしない )。
+                RELEASE_TYPE="alpha"
+                SHOULD_UPLOAD="true"
+                echo "::notice::push from PR ($PR_HEAD) — alpha approval issue will be created"
               fi
             fi
           fi
