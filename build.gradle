@@ -298,7 +298,7 @@ if (mawSourceJarDir.exists()) {
 // 前提MOD バージョン
 // =====================================================================
 def curios_version    = '5.10.0+1.20.1'
-def jei_version       = '15.20.0.132'
+def jei_version       = '15.20.0.133'
 
 // Sophisticated Backpacks (CurseForge project id: 422301)
 // Sophisticated Core      (CurseForge project id: 618298)
