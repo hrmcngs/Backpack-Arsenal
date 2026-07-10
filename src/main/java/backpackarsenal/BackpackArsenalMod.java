@@ -1,5 +1,10 @@
 package backpackarsenal;
 
+import java.util.EnumSet;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import backpackarsenal.init.ArsenalItems;
 import backpackarsenal.network.BackpackArsenalNetwork;
 import backpackarsenal.skill.SlamDownSkillAction;
@@ -8,12 +13,8 @@ import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import the_four_primitives_and_weapons.skill.PlayerSkillData;
 import the_four_primitives_and_weapons.skill.SkillRegistry;
-
-import java.util.EnumSet;
 
 /**
  * Backpack Arsenal — メインクラス
@@ -29,6 +30,7 @@ import java.util.EnumSet;
  * - 単押し抜刀 (MAW の R キー) を本体より先にフックし、Sophisticated Backpack
  *   内の voltaic_blade を優先で引き抜く (BackpackDrawClient + BackpackArsenalNetwork)
  */
+
 @Mod(BackpackArsenalMod.MODID)
 public class BackpackArsenalMod {
 
