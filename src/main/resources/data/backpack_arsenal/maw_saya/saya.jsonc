@@ -1,15 +1,16 @@
 // =====================================================================
 // Backpack Arsenal — 鞘(saya) 納刀対象アイテム宣言
 //
-// voltaic_blade は 通常の MAW 鞘には納刀させない 方針:
-//   - 納刀先は Backpack-Arsenal の arsenal_backpack 限定 (独自 R キー
-//     packet 経由、SheathToBackpackPacket / DrawFromBackpackPacket)
-//   - MAW の SayaRegistry にエントリを追加しないことで、katana 系の
-//     通常鞘 (背中・ベルト Curios slot) には吸い込まれない
+// voltaic_blade は専用 saya モデルで MAW の通常 saya に納刀できる。
+// モデルに the_four_primitives_and_weapons:back / :belt display があるため、
+// Curios の back / belt スロットでも同じ 3D モデルが描画される。
 //
-// 将来「専用 saya モデルで背中表示したい」場合はここに再登録する
-// (実体は assets/backpack_arsenal/models/custom/saya/katana/saya_voltaic_blade.json
-//  を残してあるので、エントリだけ復活させればよい)。
+// 柄・鍔・頭・刀身が同じ一枚テクスチャ上にあるため、拵え染色は
+// data/the_four_primitives_and_weapons/tags/items/koshirae/no_fitting_dye.json
+// で無効化する。納刀と表示はそのまま動く。
 // =====================================================================
 {
+  "katana": {
+    "backpack_arsenal:voltaic_blade": "backpack_arsenal:custom/saya/backpack/saya_voltaic_blade"
+  }
 }
