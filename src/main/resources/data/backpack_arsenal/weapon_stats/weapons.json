@@ -1,0 +1,6 @@
+{
+  "_comment": "Backpack Arsenal — 武器ステータス上書き。 本体MOD の WeaponStatsRegistry が data/<modid>/weapon_stats/*.json を自動収集する。 weapons(item別) は types(タイプ別既定) より優先。",
+  "weapons": {
+    "backpack_arsenal:voltaic_blade": { "attack_range": -0.5 }
+  }
+}
