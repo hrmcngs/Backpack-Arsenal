@@ -23,10 +23,42 @@ apply plugin: 'eclipse'
 // =====================================================================
 def cfCacheFile = file("${buildDir}/cf_latest_version.txt")
 def cfCachedVersion = cfCacheFile.exists() ? cfCacheFile.text.trim() : null
-def baseResolvedVersion = (project.findProperty('mod_version_override')
-        ?: cfCachedVersion
-        ?: project.findProperty('mod_version')
-        ?: '1.0.0')
+
+// suffix (-alpha/-beta/...) を剥がして数字 base だけの segment 配列にする。
+def _stripSuffix = { String v -> v?.replaceFirst(/-(alpha|beta|rc|test)(\.\d+)?$/, '') }
+def _baseNumParts = { String v ->
+    _stripSuffix(v).split('\\.').collect { (it ==~ /\d+/) ? (it as int) : 0 }
+}
+// 数字 base を segment 単位で比較 ( a>b → +1, a<b → -1, 同値 → 0 )。
+def _baseCmp = { String a, String b ->
+    def pa = _baseNumParts(a); def pb = _baseNumParts(b)
+    int n = Math.max(pa.size(), pb.size())
+    for (int i = 0; i < n; i++) {
+        int x = i < pa.size() ? pa[i] : 0
+        int y = i < pb.size() ? pb[i] : 0
+        if (x != y) return (x <=> y)
+    }
+    return 0
+}
+
+// ベースバージョン決定。 優先度と "max 方式":
+//   1. -Pmod_version_override があれば最優先 ( 明示指定 )
+//   2. CF 自動 bump ( cfCachedVersion ) と 手動 gradle.properties ( mod_version ) の
+//      「数字 base が大きい方」 を採用。 これで手で先の版に上げたら手動が勝ち
+//      ( 例: 手動 1.0.5-beta > CF 自動 1.0.4 → 1.0.5-beta )、 据え置き時は CF+1 の
+//      自動増分が勝って重複版アップロードを防ぐ ( 例: 手動 1.0.5 < CF 自動 1.0.6 → 1.0.6 )。
+//   3. どちらか片方しか無ければそれ、 両方無ければ 1.0.0。
+def _override = project.findProperty('mod_version_override')
+def _manual   = project.findProperty('mod_version')
+def baseResolvedVersion
+if (_override) {
+    baseResolvedVersion = _override
+} else if (cfCachedVersion && _manual) {
+    baseResolvedVersion = (_baseCmp(_manual.toString(), cfCachedVersion) >= 0)
+            ? _manual : cfCachedVersion
+} else {
+    baseResolvedVersion = cfCachedVersion ?: _manual ?: '1.0.0'
+}
 
 // =====================================================================
 // release type サフィックス決定:
