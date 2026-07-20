@@ -138,7 +138,7 @@ public class ArsenalBackpackContainer extends BackpackContainer {
         addDataSlot(new DataSlot() {
             public int get() {
                 var p = backpackarsenal.energy.BackpackFeEvents.getProvider(beRef);
-                return p == null ? 0 : (p.lastGenPerInterval & 0xFFFF);
+                return p == null ? 0 : (int) (p.lastGenPerInterval & 0xFFFF);
             }
             public void set(int v) {
                 feGenPerIntervalClient = (feGenPerIntervalClient & 0xFFFF0000) | (v & 0xFFFF);
@@ -147,7 +147,7 @@ public class ArsenalBackpackContainer extends BackpackContainer {
         addDataSlot(new DataSlot() {
             public int get() {
                 var p = backpackarsenal.energy.BackpackFeEvents.getProvider(beRef);
-                return p == null ? 0 : ((p.lastGenPerInterval >>> 16) & 0xFFFF);
+                return p == null ? 0 : (int) ((p.lastGenPerInterval >>> 16) & 0xFFFF);
             }
             public void set(int v) {
                 feGenPerIntervalClient = (feGenPerIntervalClient & 0xFFFF) | ((v & 0xFFFF) << 16);

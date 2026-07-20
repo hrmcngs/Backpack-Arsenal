@@ -80,9 +80,14 @@ public class BackpackFeEvents {
         var block = be.getBlockState().getBlock();
         if (block != ArsenalBlocks.ARSENAL_BACKPACK_ELECTRON_BLOCK.get()) return;
 
-        BackpackFeProvider provider = new BackpackFeProvider(
-            ArsenalBackpackConfig.feCapacity,
-            ArsenalBackpackConfig.feMaxExtract);
+        // config は int だが、 Integer.MAX_VALUE ( = "無制限" のセンチネル ) は long の
+        // Long.MAX_VALUE に昇格し、 int 上限を超えるバッファ / 搬出を許可する。 これで
+        // high-multiplier の発電を storage が飲み込め、 Mekanism 経由の搬出も int に縛られない。
+        long capacity   = ArsenalBackpackConfig.feCapacity   == Integer.MAX_VALUE
+                              ? Long.MAX_VALUE : ArsenalBackpackConfig.feCapacity;
+        long maxExtract = ArsenalBackpackConfig.feMaxExtract == Integer.MAX_VALUE
+                              ? Long.MAX_VALUE : ArsenalBackpackConfig.feMaxExtract;
+        BackpackFeProvider provider = new BackpackFeProvider(capacity, maxExtract);
         event.addCapability(CAP_KEY, provider);
         event.addListener(provider::invalidate);
         tracked.put(be, provider);
@@ -94,7 +99,8 @@ public class BackpackFeEvents {
         // 我々の attached provider は ENERGY に関しては shadow される。
         // → reflection で energyStorageCap を 我々の storage を保持する
         //   LazyOptional に上書きし、 SB の getCapability(ENERGY) が我々の値を返すようにする。
-        injectIntoSbEnergyField(be, provider);
+        //   ※ SB は cap 無効化のたびにこれを null 化するため、 onLevelTickFast で毎 tick 再注入する。
+        ensureSbEnergyField(be, provider);
 
         // Mekanism がロードされていれば、 Mekanism native の STRICT_ENERGY cap も付与する。
         // これで Mekanism cube / cable は backpack を "Mekanism native の発電機" として認識し、
@@ -103,30 +109,59 @@ public class BackpackFeEvents {
         backpackarsenal.compat.mekanism.MekanismCompat.tryAttachStrictEnergy(event, provider);
     }
 
-    /** SB BackpackBlockEntity の {@code energyStorageCap} field を reflection で
-     *  我々の storage の LazyOptional に置き換える。 SB のバージョンが上がって
-     *  field 名が変わった場合は warn して諦める (= Mekanism から見えなくなるだけで
-     *  blade 充電や他機能には影響なし)。 */
-    private static void injectIntoSbEnergyField(BlockEntity be, BackpackFeProvider provider) {
-        try {
-            Class<?> cls = be.getClass();
-            Field field = null;
-            while (cls != null) {
-                try { field = cls.getDeclaredField("energyStorageCap"); break; }
-                catch (NoSuchFieldException ignored) { cls = cls.getSuperclass(); }
+    /** SB {@code BackpackBlockEntity#energyStorageCap} field への reflective handle。
+     *  一度解決したら cache する。 SB のバージョン差で field 名が変わった等で見つからない
+     *  場合は null のまま ( = Forge FE 経路は諦め、 Mekanism STRICT_ENERGY のみで連携 )。 */
+    private static Field sbEnergyField;
+    private static boolean sbEnergyFieldResolved = false;
+
+    private static Field resolveSbEnergyField(BlockEntity be) {
+        if (sbEnergyFieldResolved) return sbEnergyField;
+        sbEnergyFieldResolved = true;
+        Class<?> cls = be.getClass();
+        while (cls != null) {
+            try {
+                Field f = cls.getDeclaredField("energyStorageCap");
+                f.setAccessible(true);
+                sbEnergyField = f;
+                break;
+            } catch (NoSuchFieldException ignored) {
+                cls = cls.getSuperclass();
             }
-            if (field == null) {
-                BackpackArsenalMod.LOGGER.warn(
-                    "[backpack_arsenal] energyStorageCap not found on {} — FE cap will be shadowed by SB",
-                    be.getClass().getName());
-                return;
-            }
-            field.setAccessible(true);
-            LazyOptional<IEnergyStorage> opt = LazyOptional.of(() -> provider.storage);
-            field.set(be, opt);
-        } catch (Throwable t) {
+        }
+        if (sbEnergyField == null) {
             BackpackArsenalMod.LOGGER.warn(
-                "[backpack_arsenal] failed to inject FE cap into SB BE: {}", t.toString());
+                "[backpack_arsenal] energyStorageCap not found on {} — Forge FE pull unavailable",
+                be.getClass().getName());
+        }
+        return sbEnergyField;
+    }
+
+    /**
+     * SB の {@code energyStorageCap} を我々の storage に向ける ( PULL 経路の要 )。
+     *
+     * <p>SB は upgrade cache 無効化 ( {@code invalidateBackpackCaps} ) のたびに
+     * {@code energyStorageCap} を invalidate + null 化し、 次回 {@code getCapability(ENERGY)}
+     * で自前の {@code EmptyEnergyStorage} ( 受発電 0 ) を lazily 生成する。 この無効化は
+     * ロード直後や内容変更で頻繁に起きるため、 attach 時に一度だけ注入すると即座に上書き
+     * され、 Forge FE の cable / 直繋機械が空 storage を掴んで搬出 0 になる。</p>
+     *
+     * <p>対策として毎 tick これを呼び、 field が我々の storage を指していなければ再注入する。
+     * 既に我々の storage を指しているときは何もしない ( = 接続 thrash しない )。 SB が差し込んだ
+     * Empty 等が居たら invalidate して Forge の cap consumer に再 query させる。</p>
+     */
+    private static void ensureSbEnergyField(BlockEntity be, BackpackFeProvider provider) {
+        Field field = resolveSbEnergyField(be);
+        if (field == null) return;
+        try {
+            Object cur = field.get(be);
+            if (cur instanceof LazyOptional<?> lo) {
+                if (lo.resolve().orElse(null) == provider.storage) return; // 既に我々の → no-op
+                lo.invalidate(); // SB の Empty を無効化 → listener が再 query
+            }
+            field.set(be, LazyOptional.of(() -> provider.storage));
+        } catch (Throwable ignored) {
+            // 毎 tick 呼ばれるので失敗しても warn しない ( resolveSbEnergyField で一度 warn 済み )
         }
     }
 
@@ -164,6 +199,10 @@ public class BackpackFeEvents {
                 if (be == null || be.isRemoved()) continue;
                 if (be.getLevel() != event.level) continue;
 
+                // 0) PULL 経路の自己修復: SB が energyStorageCap を null 化して EmptyEnergyStorage に
+                //    戻すのを毎 tick 検知して我々の storage に再注入する ( cable / 直繋機械の吸出し用 )。
+                ensureSbEnergyField(be, provider);
+
                 // 1) notify pulse 進行
                 if (hasPendingNotify && provider.notifyTicksRemaining > 0) {
                     provider.notifyTicksRemaining--;
@@ -194,7 +233,9 @@ public class BackpackFeEvents {
         if (event.level.getGameTime() % 10 != 0) return;
 
         int baseChargePerInterval = VoltaicBladeItem.CHARGE_PER_TICK_IN_BACKPACK * 10;
-        int baseFePerInterval = ArsenalBackpackConfig.feGenPerTick * 10;
+        // FE 発電は high-multiplier で int を溢れるため long で計算する
+        // ( 溢れると負値になり cachedFePerTick>0 を満たさず発電が頭打ち/停止していた )。
+        long baseFePerInterval = (long) ArsenalBackpackConfig.feGenPerTick * 10;
 
         synchronized (tracked) {
             Iterator<Map.Entry<BlockEntity, BackpackFeProvider>> it = tracked.entrySet().iterator();
@@ -213,8 +254,11 @@ public class BackpackFeEvents {
                 //   tier I + tier II       → 4x (tier II bonus 512 = +2)
                 //   ...etc
                 int multiplier = 1 + sumVoltaicChargerContributions(be);
-                int chargePerInterval = baseChargePerInterval * multiplier;
-                int fePerInterval = baseFePerInterval * multiplier;
+                // blade 充電量は int ( blade の max charge が int ) なので overflow をクランプ。
+                int chargePerInterval = (int) Math.min(
+                        Integer.MAX_VALUE, (long) baseChargePerInterval * multiplier);
+                // FE 発電は long のまま ( 搬出も long 経路で無制限 )。
+                long fePerInterval = baseFePerInterval * multiplier;
 
                 // 隣接通知 は別ハンドラ {@link #onLevelTickFast} で 毎 tick 実行する。
                 // ここ (10 tick gate 内) ではやらない。

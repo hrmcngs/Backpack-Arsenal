@@ -29,17 +29,19 @@ public class BackpackFeProvider implements ICapabilitySerializable<CompoundTag> 
     public int notifyTicksRemaining = INITIAL_NOTIFY_TICKS;
     public static final int INITIAL_NOTIFY_TICKS = 5;
 
-    /** 直近 10-tick (0.5 秒) の発電能力 ( base × multiplier、 blade 不在時は 0 )。 UI 表示用
-     *  ( FE/s = この値 × 2 )。 バッファ空き容量による制限は反映しないので、 upgrade の効果
-     *  ( multiplier ) が UI で素直に確認できる。 BackpackFeEvents.onLevelTick が書き込む。 */
-    public int lastGenPerInterval = 0;
+    /** 直近 10-tick (0.5 秒) の発電能力 ( base × multiplier、 blade 不在時は 0 )。 UI 表示用。
+     *  バッファ空き容量による制限は反映しないので、 upgrade の効果 ( multiplier ) が UI で
+     *  素直に確認できる。 BackpackFeEvents.onLevelTick が書き込む。 high-multiplier で int を
+     *  超えるため long。 */
+    public long lastGenPerInterval = 0;
 
     /** 毎 tick 発電する量 ( = baseFePerTick × multiplier、 blade 不在時は 0 )。
      *  外部 drain と発電を per-tick で平準化し、 cable が "0 / 5 FE/t を行き来" する状態を防ぐ。
-     *  10-tick gate の重いスロットスキャンで再計算され、 fastTick が毎 tick 適用する。 */
-    public volatile int cachedFePerTick = 0;
+     *  10-tick gate の重いスロットスキャンで再計算され、 fastTick が毎 tick 適用する。
+     *  high-multiplier で int を超える ( overflow で発電が頭打ちになるのを防ぐ ) ため long。 */
+    public volatile long cachedFePerTick = 0;
 
-    public BackpackFeProvider(int capacity, int maxExtract) {
+    public BackpackFeProvider(long capacity, long maxExtract) {
         this.storage = new BackpackFeStorage(capacity, maxExtract);
         this.opt = LazyOptional.of(() -> storage);
     }
@@ -53,13 +55,15 @@ public class BackpackFeProvider implements ICapabilitySerializable<CompoundTag> 
     @Override
     public CompoundTag serializeNBT() {
         CompoundTag tag = new CompoundTag();
-        tag.putInt("Energy", storage.getEnergyStored());
+        // long で保存 ( int 上限を超えるバッファに対応 )。 旧 IntTag 保存分も
+        // CompoundTag#getLong が NumericTag として読めるので後方互換。
+        tag.putLong("Energy", storage.getEnergyStoredLong());
         return tag;
     }
 
     @Override
     public void deserializeNBT(CompoundTag tag) {
-        storage.setEnergy(tag.getInt("Energy"));
+        storage.setEnergy(tag.getLong("Energy"));
     }
 
     /** BlockEntity 破棄時に LazyOptional を無効化 (cache holder が掴んだままにならないように)。 */

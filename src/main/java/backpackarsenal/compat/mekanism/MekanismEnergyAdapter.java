@@ -38,28 +38,29 @@ public class MekanismEnergyAdapter implements IStrictEnergyHandler {
     @Override
     public FloatingLong getEnergy(int container) {
         if (container != 0) return FloatingLong.ZERO;
-        return FloatingLong.createConst(storage.getEnergyStored());
+        // long 値をそのまま公開 ( int にクランプしない = Mekanism 経由の搬出は無制限 )。
+        return FloatingLong.createConst(storage.getEnergyStoredLong());
     }
 
     @Override
     public void setEnergy(int container, FloatingLong energy) {
         if (container != 0) return;
-        // FloatingLong → int 変換 (overflow しないよう clamp)
-        long v = Math.min(energy.longValue(), storage.getMaxEnergyStored());
-        storage.setEnergy((int) Math.max(0, v));
+        // FloatingLong → long 変換 (capacity で clamp)
+        long v = Math.min(energy.longValue(), storage.getMaxEnergyStoredLong());
+        storage.setEnergy(Math.max(0L, v));
     }
 
     @Override
     public FloatingLong getMaxEnergy(int container) {
         if (container != 0) return FloatingLong.ZERO;
-        return FloatingLong.createConst(storage.getMaxEnergyStored());
+        return FloatingLong.createConst(storage.getMaxEnergyStoredLong());
     }
 
     @Override
     public FloatingLong getNeededEnergy(int container) {
         if (container != 0) return FloatingLong.ZERO;
-        int need = storage.getMaxEnergyStored() - storage.getEnergyStored();
-        return FloatingLong.createConst(Math.max(0, need));
+        long need = storage.getMaxEnergyStoredLong() - storage.getEnergyStoredLong();
+        return FloatingLong.createConst(Math.max(0L, need));
     }
 
     /**
@@ -78,9 +79,8 @@ public class MekanismEnergyAdapter implements IStrictEnergyHandler {
     public FloatingLong extractEnergy(int container, FloatingLong amount, Action action) {
         if (container != 0) return FloatingLong.ZERO;
         if (amount.isZero()) return FloatingLong.ZERO;
-        // amount を int に clamp してから BackpackFeStorage.extractEnergy を叩く。
-        int requested = (int) Math.min(Integer.MAX_VALUE, amount.longValue());
-        int extracted = storage.extractEnergy(requested, action.simulate());
+        // long のまま取り出す ( int クランプしない = 1 tick で int 上限を超える搬出も可 )。
+        long extracted = storage.extractLong(amount.longValue(), action.simulate());
         return FloatingLong.createConst(extracted);
     }
 }

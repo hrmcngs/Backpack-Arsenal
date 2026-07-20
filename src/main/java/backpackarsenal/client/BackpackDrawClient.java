@@ -2,6 +2,7 @@ package backpackarsenal.client;
 
 import backpackarsenal.BackpackArsenalMod;
 import backpackarsenal.init.ArsenalItems;
+import backpackarsenal.item.ArsenalBackpackItem;
 import backpackarsenal.network.BackpackArsenalNetwork;
 import backpackarsenal.network.DrawFromBackpackPacket;
 import backpackarsenal.network.SheathToBackpackPacket;
@@ -151,16 +152,16 @@ public class BackpackDrawClient {
     }
 
     private static boolean hasVoltaicBladeInAnyArsenal(Player player) {
+        // ★ client 側では ItemStack の ITEM_HANDLER capability は空を返す
+        //   (SB は中身をサーバー側 UUID 保管し、client NBT には載せない)。
+        //   そのため capability を直接 scan すると常に 0 本判定になり、抜刀が
+        //   永久に発火しない。代わりにサーバーが 0.2 秒ごとに同期している
+        //   NBT count (countVoltaicInRegularSlots が NBT を優先参照) を使う。
         AtomicBoolean found = new AtomicBoolean(false);
         BackpackScanner.forEachArsenalBackpack(player, backpackStack -> {
             if (found.get()) return;
-            IItemHandler h = backpackStack.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
-            if (h == null) return;
-            for (int s = 0; s < h.getSlots(); s++) {
-                if (h.getStackInSlot(s).getItem() == ArsenalItems.VOLTAIC_BLADE.get()) {
-                    found.set(true);
-                    return;
-                }
+            if (ArsenalBackpackItem.countVoltaicInRegularSlots(backpackStack) > 0) {
+                found.set(true);
             }
         });
         return found.get();

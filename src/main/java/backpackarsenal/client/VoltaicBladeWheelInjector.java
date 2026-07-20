@@ -2,6 +2,7 @@ package backpackarsenal.client;
 
 import backpackarsenal.BackpackArsenalMod;
 import backpackarsenal.init.ArsenalItems;
+import backpackarsenal.item.ArsenalBackpackItem;
 import backpackarsenal.network.BackpackArsenalNetwork;
 import backpackarsenal.network.DrawFromBackpackPacket;
 import backpackarsenal.network.SheathToBackpackPacket;
@@ -104,20 +105,24 @@ public class VoltaicBladeWheelInjector {
                     || (mode == null && mainHand.getItem() == ArsenalItems.VOLTAIC_BLADE.get());
 
             BackpackScanner.forEachArsenalBackpackWithSource(player, (backpackStack, source) -> {
-                IItemHandler handler = backpackStack
-                    .getCapability(ForgeCapabilities.ITEM_HANDLER)
-                    .orElse(null);
-                if (handler == null) return;
-
                 if (isDrawMode) {
-                    for (int s = 0; s < handler.getSlots(); s++) {
-                        ItemStack inner = handler.getStackInSlot(s);
-                        if (inner.getItem() != ArsenalItems.VOLTAIC_BLADE.get()) continue;
-                        addEntry(list, backpackStack, inner, source);
+                    // ★ client 側では backpack の ITEM_HANDLER capability は空スロットしか返さない
+                    //   (中身はサーバー側で UUID 保管され client NBT に載らない)。 そのため
+                    //   capability を直接 scan すると DRAW エントリが 1 つも作られない。
+                    //   代わりにサーバーが同期している NBT count を参照して、 収納本数ぶんの
+                    //   抜刀エントリ ( 表示用アイコン ) を作る。 実際の抜刀は DrawFromBackpackPacket
+                    //   がサーバー権威のインベントリから行うので、 アイコンは placeholder で良い。
+                    int count = ArsenalBackpackItem.countVoltaicInRegularSlots(backpackStack);
+                    for (int n = 0; n < count; n++) {
+                        addEntry(list, backpackStack,
+                                new ItemStack(ArsenalItems.VOLTAIC_BLADE.get()), source);
                     }
                 } else if (isSheathMode) {
                     if (mainHand.getItem() != ArsenalItems.VOLTAIC_BLADE.get()) return;
-                    if (!hasEmptySlot(handler)) return;
+                    IItemHandler handler = backpackStack
+                        .getCapability(ForgeCapabilities.ITEM_HANDLER)
+                        .orElse(null);
+                    if (handler == null || !hasEmptySlot(handler)) return;
                     addEntry(list, backpackStack, mainHand, source);
                 }
             });
@@ -133,17 +138,20 @@ public class VoltaicBladeWheelInjector {
         ItemStack bladeStack,
         BackpackScanner.BackpackSource source
     ) {
-        // wheel UI の getSlotLabel は ScabbardLocation.CURIOS+curioSlotId="back" を「背中」と表示し、
-        // ScabbardLocation.INVENTORY を「インベントリ」と表示する。
-        // 背負っているバックパックは背中ラベル、インベントリ内のは「インベントリ」を表示させる。
+        // location は所在地判定用に持たせるが、 wheel のスロットラベルは backpack 由来と分かる
+        // よう slotLabelOverride で上書きする ( 既定の「インベントリ」「背中」 だと saya と区別が
+        // 付かないため )。 背負い = 「背中backpack」、 インベントリ = 「backpack」。
         CuriosScabbardHelper.ScabbardLocation location;
         String curioSlotId;
+        String labelOverride;
         if (source == BackpackScanner.BackpackSource.CURIOS_BACK) {
             location = CuriosScabbardHelper.ScabbardLocation.CURIOS;
             curioSlotId = "back";
+            labelOverride = "背中backpack";
         } else {
             location = CuriosScabbardHelper.ScabbardLocation.INVENTORY;
             curioSlotId = null;
+            labelOverride = "backpack";
         }
         // slotIndex は wheel 視覚にしか使われない (我々の packet 側では参照しない)。
         CuriosScabbardHelper.DrawableWeaponInfo entry =
@@ -152,7 +160,8 @@ public class VoltaicBladeWheelInjector {
                 bladeStack,
                 location,
                 curioSlotId,
-                -1
+                -1,
+                labelOverride
             );
         injectedEntries.put(entry, Boolean.TRUE);
         list.add(entry);
