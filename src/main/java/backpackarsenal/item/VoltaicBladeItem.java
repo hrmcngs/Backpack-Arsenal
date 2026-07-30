@@ -9,6 +9,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.DyeableLeatherItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Rarity;
@@ -50,7 +51,7 @@ import java.util.List;
  *   実装は backpackarsenal.skill.SlamDownSkillAction。
  *   充電 ElementLevel に応じてダメージスケール、充電消費は 400。
  */
-public class VoltaicBladeItem extends SwordItem {
+public class VoltaicBladeItem extends SwordItem implements DyeableLeatherItem {
 
     public static final String TAG_CHARGE = "BackpackCharge";
     public static final String TAG_ELEMENT_TYPE = "ElementType";

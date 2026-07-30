@@ -10,6 +10,7 @@ import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.DyeableLeatherItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Rarity;
@@ -121,6 +122,14 @@ public class ArsenalBackpackItem extends BackpackItem {
      *  rendering からは必ず NBT を見る。 */
     private static final String NBT_VOLTAIC_COUNT_TAG = "BackpackArsenalVoltaicCount";
 
+    /** 収納中 voltaic_blade の染色色 (display.color) を client 描画へ同期する NBT キー。
+     *  saya (納刀) の柄 tint に使う。 未染色 / 未収納 は {@link #NO_VOLTAIC_COLOR}。
+     *  中身は SB 管理で client に来ないため、 count と同様 NBT 経由で渡す。 */
+    private static final String NBT_VOLTAIC_COLOR_TAG = "BackpackArsenalVoltaicColor";
+
+    /** 染色されていない / 刀が入っていない時のセンチネル (= tint 無し)。 */
+    public static final int NO_VOLTAIC_COLOR = -1;
+
     /**
      * バックパック内の通常スロットに入っている voltaic_blade の本数を数える。
      *
@@ -149,20 +158,51 @@ public class ArsenalBackpackItem extends BackpackItem {
         return count;
     }
 
+    /** capability から最初の voltaic_blade の染色色を返す。 server side のみ正確。
+     *  染色済みならその display.color、 それ以外 (未染色 / 未収納) は {@link #NO_VOLTAIC_COLOR}。 */
+    private static int liveScanVoltaicColor(ItemStack backpack) {
+        IItemHandler handler = backpack.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
+        if (handler == null) return NO_VOLTAIC_COLOR;
+        for (int i = 0; i < handler.getSlots(); i++) {
+            ItemStack slot = handler.getStackInSlot(i);
+            if (slot.getItem() == ArsenalItems.VOLTAIC_BLADE.get()
+                    && slot.getItem() instanceof DyeableLeatherItem dyeable
+                    && dyeable.hasCustomColor(slot)) {
+                return dyeable.getColor(slot);
+            }
+        }
+        return NO_VOLTAIC_COLOR;
+    }
+
+    /** client 描画用: 同期済みの収納 voltaic_blade 染色色を返す (未同期は {@link #NO_VOLTAIC_COLOR})。 */
+    public static int getSyncedVoltaicColor(ItemStack backpack) {
+        var nbt = backpack.getTag();
+        if (nbt != null && nbt.contains(NBT_VOLTAIC_COLOR_TAG)) {
+            return nbt.getInt(NBT_VOLTAIC_COLOR_TAG);
+        }
+        return NO_VOLTAIC_COLOR;
+    }
+
     /**
-     * server-side で voltaic_blade 本数を scan し、 ItemStack NBT に同期する。
+     * server-side で voltaic_blade 本数と染色色を scan し、 ItemStack NBT に同期する。
      * tick handler ({@code BackpackChargingHandler}) から定期的に呼ばれる想定。
      *
-     * 同じ count が既に書かれていれば書き込まず、NBT 変更通知 → 無駄な client 同期を抑制する。
+     * 同じ値が既に書かれていれば書き込まず、NBT 変更通知 → 無駄な client 同期を抑制する。
      */
     public static void syncVoltaicCountToNbt(ItemStack backpack) {
         if (backpack.isEmpty()) return;
         int newCount = liveScanVoltaicCount(backpack);
+        int newColor = liveScanVoltaicColor(backpack);
         var nbt = backpack.getTag();
         int oldCount = (nbt != null && nbt.contains(NBT_VOLTAIC_COUNT_TAG))
             ? nbt.getInt(NBT_VOLTAIC_COUNT_TAG) : -1;
+        int oldColor = (nbt != null && nbt.contains(NBT_VOLTAIC_COLOR_TAG))
+            ? nbt.getInt(NBT_VOLTAIC_COLOR_TAG) : Integer.MIN_VALUE;
         if (oldCount != newCount) {
             backpack.getOrCreateTag().putInt(NBT_VOLTAIC_COUNT_TAG, newCount);
+        }
+        if (oldColor != newColor) {
+            backpack.getOrCreateTag().putInt(NBT_VOLTAIC_COLOR_TAG, newColor);
         }
     }
 
