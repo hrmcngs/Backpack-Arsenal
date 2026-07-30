@@ -1,0 +1,9 @@
+{
+  "sources": [
+    {
+      "type": "minecraft:directory",
+      "source": "voltaic_blade_fitting",
+      "prefix": "voltaic_blade_fitting/"
+    }
+  ]
+}

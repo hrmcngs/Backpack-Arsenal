@@ -47,6 +47,10 @@ public final class SayaBackpackOverlay {
     private static final ResourceLocation SAYA_WITH_BLADE_ID =
         new ResourceLocation(BackpackArsenalMod.MODID, "custom/saya/backpack/saya_voltaic_blade");
 
+    /** 刀入り + 染色済みの鞘モデル (柄が gray 地 = 乗算tintで発色)。 */
+    private static final ResourceLocation SAYA_DYED_ID =
+        new ResourceLocation(BackpackArsenalMod.MODID, "custom/saya/backpack/saya_voltaic_blade_dyed");
+
     /** 空鞘モデル (voltaic_blade なし) の ResourceLocation。 */
     private static final ResourceLocation SAYA_EMPTY_ID =
         new ResourceLocation(BackpackArsenalMod.MODID, "custom/saya/backpack/saya_voltaic_blade_kara");
@@ -58,11 +62,14 @@ public final class SayaBackpackOverlay {
      *  (ModelResourceLocation.hashCode は variant 分余計に積む)。 */
     private static final ModelResourceLocation SAYA_WITH_BLADE_LOOKUP =
         new ModelResourceLocation(SAYA_WITH_BLADE_ID, "");
+    private static final ModelResourceLocation SAYA_DYED_LOOKUP =
+        new ModelResourceLocation(SAYA_DYED_ID, "");
     private static final ModelResourceLocation SAYA_EMPTY_LOOKUP =
         new ModelResourceLocation(SAYA_EMPTY_ID, "");
 
     /** ベイク済み saya モデル。初回 ModifyBakingResult までは null。 */
     private static BakedModel cachedSayaWithBladeModel;
+    private static BakedModel cachedSayaDyedModel;
     private static BakedModel cachedSayaEmptyModel;
 
     private SayaBackpackOverlay() {}
@@ -70,6 +77,7 @@ public final class SayaBackpackOverlay {
     @SubscribeEvent
     public static void onRegisterAdditional(ModelEvent.RegisterAdditional event) {
         event.register(SAYA_WITH_BLADE_ID);
+        event.register(SAYA_DYED_ID);
         event.register(SAYA_EMPTY_ID);
     }
 
@@ -77,6 +85,7 @@ public final class SayaBackpackOverlay {
     public static void onModifyBaking(ModelEvent.ModifyBakingResult event) {
         var models = event.getModels();
         cachedSayaWithBladeModel = lookup(models, SAYA_WITH_BLADE_ID, SAYA_WITH_BLADE_LOOKUP, "saya_voltaic_blade");
+        cachedSayaDyedModel      = lookup(models, SAYA_DYED_ID,       SAYA_DYED_LOOKUP,       "saya_voltaic_blade_dyed");
         cachedSayaEmptyModel     = lookup(models, SAYA_EMPTY_ID,      SAYA_EMPTY_LOOKUP,      "saya_voltaic_blade_kara");
     }
 
@@ -130,13 +139,20 @@ public final class SayaBackpackOverlay {
         }
 
         int voltaicCount = ArsenalBackpackItem.countVoltaicInRegularSlots(backpackStack);
-        BakedModel model = (voltaicCount > 0) ? cachedSayaWithBladeModel : cachedSayaEmptyModel;
-        String variantName = (voltaicCount > 0) ? "with-blade" : "empty";
+        // 染色済み ( 柄/grip に拵え色が同期されている ) なら gray 地モデル ( 乗算tintで発色 )、
+        // 未染色 ( デフォルト ) は無印地モデル。
+        boolean dyed = voltaicCount > 0
+            && (ArsenalBackpackItem.getSyncedTsukaColor(backpackStack) != ArsenalBackpackItem.NO_VOLTAIC_COLOR
+                || ArsenalBackpackItem.getSyncedTsubaColor(backpackStack) != ArsenalBackpackItem.NO_VOLTAIC_COLOR);
+        BakedModel model = (voltaicCount <= 0) ? cachedSayaEmptyModel
+            : (dyed ? cachedSayaDyedModel : cachedSayaWithBladeModel);
+        String variantName = (voltaicCount <= 0) ? "empty" : (dyed ? "with-blade-dyed" : "with-blade");
 
         if (model == null) {
             // Bake event を取り逃した可能性があるので runtime に 1 度だけ lookup
             tryRuntimeLookup();
-            model = (voltaicCount > 0) ? cachedSayaWithBladeModel : cachedSayaEmptyModel;
+            model = (voltaicCount <= 0) ? cachedSayaEmptyModel
+                : (dyed ? cachedSayaDyedModel : cachedSayaWithBladeModel);
             if (model == null) {
                 logSkipOnce(variantName + " model is null (bake failed or lookup miss)");
                 return;
@@ -202,6 +218,10 @@ public final class SayaBackpackOverlay {
             if (cachedSayaWithBladeModel == null) {
                 BakedModel m = mm.getModel(SAYA_WITH_BLADE_LOOKUP);
                 if (m != null && m != mm.getMissingModel()) cachedSayaWithBladeModel = m;
+            }
+            if (cachedSayaDyedModel == null) {
+                BakedModel m = mm.getModel(SAYA_DYED_LOOKUP);
+                if (m != null && m != mm.getMissingModel()) cachedSayaDyedModel = m;
             }
             if (cachedSayaEmptyModel == null) {
                 BakedModel m = mm.getModel(SAYA_EMPTY_LOOKUP);

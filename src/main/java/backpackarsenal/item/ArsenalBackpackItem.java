@@ -10,7 +10,7 @@ import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.DyeableLeatherItem;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Rarity;
@@ -122,10 +122,14 @@ public class ArsenalBackpackItem extends BackpackItem {
      *  rendering からは必ず NBT を見る。 */
     private static final String NBT_VOLTAIC_COUNT_TAG = "BackpackArsenalVoltaicCount";
 
-    /** 収納中 voltaic_blade の染色色 (display.color) を client 描画へ同期する NBT キー。
-     *  saya (納刀) の柄 tint に使う。 未染色 / 未収納 は {@link #NO_VOLTAIC_COLOR}。
-     *  中身は SB 管理で client に来ないため、 count と同様 NBT 経由で渡す。 */
-    private static final String NBT_VOLTAIC_COLOR_TAG = "BackpackArsenalVoltaicColor";
+    /** 収納中 voltaic_blade の拵え色 (柄=TsukaColor / grip=TsubaColor) を client 描画へ同期する NBT キー。
+     *  saya (納刀) の柄 tint に使う。 中身は SB 管理で client に来ないため、 count と同様 NBT 経由で渡す。 */
+    private static final String NBT_TSUKA_COLOR_TAG = "BackpackArsenalTsukaColor";
+    private static final String NBT_TSUBA_COLOR_TAG = "BackpackArsenalTsubaColor";
+
+    /** the_four_primitives の KoshiraeFittings が使う NBT キー (top-level int, RGB)。 文字列直参照でクロスMOD依存を避ける。 */
+    private static final String KOSHIRAE_TSUKA_KEY = "TsukaColor";
+    private static final String KOSHIRAE_TSUBA_KEY = "TsubaColor";
 
     /** 染色されていない / 刀が入っていない時のセンチネル (= tint 無し)。 */
     public static final int NO_VOLTAIC_COLOR = -1;
@@ -158,29 +162,42 @@ public class ArsenalBackpackItem extends BackpackItem {
         return count;
     }
 
-    /** capability から最初の voltaic_blade の染色色を返す。 server side のみ正確。
-     *  染色済みならその display.color、 それ以外 (未染色 / 未収納) は {@link #NO_VOLTAIC_COLOR}。 */
-    private static int liveScanVoltaicColor(ItemStack backpack) {
+    /** blade の拵え色を読む: koshirae NBT (top-level int) → 無ければ display.color (革方式) → 無ければ -1。
+     *  the_four_primitives の {@code KoshiraeFittings.tsukaRgb/tsubaRgb} と同じフォールバック順。 */
+    private static int bladeFittingColor(ItemStack blade, String koshiraeKey) {
+        CompoundTag t = blade.getTag();
+        if (t == null) return NO_VOLTAIC_COLOR;
+        if (t.contains(koshiraeKey)) return t.getInt(koshiraeKey) & 0xFFFFFF;
+        if (t.contains("display")) {
+            CompoundTag d = t.getCompound("display");
+            if (d.contains("color", 99)) return d.getInt("color") & 0xFFFFFF;
+        }
+        return NO_VOLTAIC_COLOR;
+    }
+
+    /** capability から最初の voltaic_blade の拵え色 (koshiraeKey) を返す。 server side のみ正確。 */
+    private static int liveScanVoltaicColor(ItemStack backpack, String koshiraeKey) {
         IItemHandler handler = backpack.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
         if (handler == null) return NO_VOLTAIC_COLOR;
         for (int i = 0; i < handler.getSlots(); i++) {
             ItemStack slot = handler.getStackInSlot(i);
-            if (slot.getItem() == ArsenalItems.VOLTAIC_BLADE.get()
-                    && slot.getItem() instanceof DyeableLeatherItem dyeable
-                    && dyeable.hasCustomColor(slot)) {
-                return dyeable.getColor(slot);
+            if (slot.getItem() == ArsenalItems.VOLTAIC_BLADE.get()) {
+                return bladeFittingColor(slot, koshiraeKey);
             }
         }
         return NO_VOLTAIC_COLOR;
     }
 
-    /** client 描画用: 同期済みの収納 voltaic_blade 染色色を返す (未同期は {@link #NO_VOLTAIC_COLOR})。 */
-    public static int getSyncedVoltaicColor(ItemStack backpack) {
+    /** client 描画用: 同期済みの柄(tsuka)色。 未同期は {@link #NO_VOLTAIC_COLOR}。 */
+    public static int getSyncedTsukaColor(ItemStack backpack) {
         var nbt = backpack.getTag();
-        if (nbt != null && nbt.contains(NBT_VOLTAIC_COLOR_TAG)) {
-            return nbt.getInt(NBT_VOLTAIC_COLOR_TAG);
-        }
-        return NO_VOLTAIC_COLOR;
+        return (nbt != null && nbt.contains(NBT_TSUKA_COLOR_TAG)) ? nbt.getInt(NBT_TSUKA_COLOR_TAG) : NO_VOLTAIC_COLOR;
+    }
+
+    /** client 描画用: 同期済みの grip(tsuba)色。 未同期は {@link #NO_VOLTAIC_COLOR}。 */
+    public static int getSyncedTsubaColor(ItemStack backpack) {
+        var nbt = backpack.getTag();
+        return (nbt != null && nbt.contains(NBT_TSUBA_COLOR_TAG)) ? nbt.getInt(NBT_TSUBA_COLOR_TAG) : NO_VOLTAIC_COLOR;
     }
 
     /**
@@ -192,17 +209,23 @@ public class ArsenalBackpackItem extends BackpackItem {
     public static void syncVoltaicCountToNbt(ItemStack backpack) {
         if (backpack.isEmpty()) return;
         int newCount = liveScanVoltaicCount(backpack);
-        int newColor = liveScanVoltaicColor(backpack);
+        int newTsuka = liveScanVoltaicColor(backpack, KOSHIRAE_TSUKA_KEY);
+        int newTsuba = liveScanVoltaicColor(backpack, KOSHIRAE_TSUBA_KEY);
         var nbt = backpack.getTag();
         int oldCount = (nbt != null && nbt.contains(NBT_VOLTAIC_COUNT_TAG))
             ? nbt.getInt(NBT_VOLTAIC_COUNT_TAG) : -1;
-        int oldColor = (nbt != null && nbt.contains(NBT_VOLTAIC_COLOR_TAG))
-            ? nbt.getInt(NBT_VOLTAIC_COLOR_TAG) : Integer.MIN_VALUE;
+        int oldTsuka = (nbt != null && nbt.contains(NBT_TSUKA_COLOR_TAG))
+            ? nbt.getInt(NBT_TSUKA_COLOR_TAG) : Integer.MIN_VALUE;
+        int oldTsuba = (nbt != null && nbt.contains(NBT_TSUBA_COLOR_TAG))
+            ? nbt.getInt(NBT_TSUBA_COLOR_TAG) : Integer.MIN_VALUE;
         if (oldCount != newCount) {
             backpack.getOrCreateTag().putInt(NBT_VOLTAIC_COUNT_TAG, newCount);
         }
-        if (oldColor != newColor) {
-            backpack.getOrCreateTag().putInt(NBT_VOLTAIC_COLOR_TAG, newColor);
+        if (oldTsuka != newTsuka) {
+            backpack.getOrCreateTag().putInt(NBT_TSUKA_COLOR_TAG, newTsuka);
+        }
+        if (oldTsuba != newTsuba) {
+            backpack.getOrCreateTag().putInt(NBT_TSUBA_COLOR_TAG, newTsuba);
         }
     }
 
