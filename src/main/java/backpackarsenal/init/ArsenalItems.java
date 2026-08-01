@@ -23,6 +23,13 @@ public class ArsenalItems {
     public static final RegistryObject<Item> VOLTAIC_BLADE =
         REGISTRY.register("voltaic_blade", VoltaicBladeItem::new);
 
+    /** Voltaic Element Core — 金床で voltaic_blade と合成すると、 刀の属性を
+     *  電気 (ELECTRIC) ⇄ 雷 (THUNDER) にトグルする特殊アイテム。 ハンドラ:
+     *  {@link backpackarsenal.event.VoltaicElementSwitchAnvilHandler}。
+     *  雷モードはバックパック充電が電気より遅い ( バランス )。 */
+    public static final RegistryObject<Item> VOLTAIC_ELEMENT_CORE =
+        REGISTRY.register("voltaic_element_core", backpackarsenal.item.VoltaicElementCoreItem::new);
+
     /** Arsenal Backpack (Electron 系) — 充電機能付きの独自グレードバックパック (SB BackpackItem 拡張)。
      *  今後 Fire / Ice 等の variant を追加する想定で suffix を付けている。 */
     public static final RegistryObject<Item> ARSENAL_BACKPACK_ELECTRON =

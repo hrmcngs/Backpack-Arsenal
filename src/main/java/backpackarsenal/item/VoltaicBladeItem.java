@@ -56,6 +56,22 @@ public class VoltaicBladeItem extends SwordItem implements DyeableLeatherItem {
     public static final String TAG_CHARGE = "BackpackCharge";
     public static final String TAG_ELEMENT_TYPE = "ElementType";
     public static final String TAG_ELEMENT_LEVEL = "ElementLevel";
+
+    /** 手動で盛った element level のブースト ( 金床で強化 / 減少できる )。
+     *  実効 element level = 充電由来の基準 level (1〜3) + このブースト。
+     *  レベルが高いほど 1 ヒットの充電消費が {@link #CHARGE_COST_PER_ELEMENT_LEVEL} ずつ増える。 */
+    public static final String TAG_ELEMENT_LEVEL_BOOST = "ElementLevelBoost";
+
+    /** 属性モード ( 金床で voltaic_element_core と合成してトグル )。
+     *  MAW の {@code ElementType.fromString} は equalsIgnoreCase なので大文字表記でよい。 */
+    public static final String TAG_ELEMENT_MODE = "ElementMode";
+    public static final String MODE_ELECTRIC = "ELECTRIC"; // 電気属性 ( 既定 )
+    public static final String MODE_THUNDER  = "THUNDER";  // 雷属性
+
+    /** 雷モードのバックパック充電レート ( 電気の {@value}/{@value} 倍 = 遅い )。
+     *  雷は電気より貯まるのが遅い、 というバランス。 */
+    public static final int THUNDER_CHARGE_NUMERATOR   = 1;
+    public static final int THUNDER_CHARGE_DENOMINATOR = 2;
     /** capacitor upgrade を適用した stage 配列 (LIFO)。 各 entry は +bonus 量 (256/512/1024)。
      *  これで tier を区別したまま積めるので、 sneak+RC で 1 stage ずつ剥がせる。 */
     public static final String TAG_CAPACITOR_STAGES = "CapacitorStages";
@@ -68,6 +84,10 @@ public class VoltaicBladeItem extends SwordItem implements DyeableLeatherItem {
     public static final int BASE_MAX_CHARGE = 1024;
     public static final int CHARGE_COST_PER_HIT = 200;
     public static final int CHARGE_PER_TICK_IN_BACKPACK = 2;
+    /** 実効 element level 1 ごとに増える 1 ヒットの追加充電消費 ( 徐々に重くなる )。 */
+    public static final int CHARGE_COST_PER_ELEMENT_LEVEL = 100;
+    /** element level ブーストの survival 上限 ( creative は無制限 )。 */
+    public static final int MAX_ELEMENT_LEVEL_BOOST = 5;
     /** capacitor upgrade tier の bonus 値 (I=+256, II=+512, III=+1024)。 strongest = 1024。 */
     public static final int CAPACITOR_TIER_I_BONUS  = 256;
     public static final int CAPACITOR_TIER_II_BONUS = 512;
@@ -170,14 +190,86 @@ public class VoltaicBladeItem extends SwordItem implements DyeableLeatherItem {
         CompoundTag tag = stack.getOrCreateTag();
         tag.putInt(TAG_CHARGE, clamped);
 
-        int level = chargeToElementLevel(clamped, max);
-        if (level > 0) {
-            tag.putString(TAG_ELEMENT_TYPE, "ELECTRIC");
-            tag.putInt(TAG_ELEMENT_LEVEL, level);
+        // element level は充電残量比 ( max 依存 ) をやめ、 「充電されていれば固定 base 1 +
+        // 手動ブースト」 に統一する。 これで最大チャージ量に関係なくレベルの上がり方が一定になり、
+        // ダスト 1 個 = +1 レベル で素直に効く。 MAW はこの ElementLevel を読む。
+        if (clamped > 0) {
+            tag.putString(TAG_ELEMENT_TYPE, getElementMode(stack));
+            tag.putInt(TAG_ELEMENT_LEVEL, 1 + getElementLevelBoost(stack));
         } else {
             tag.remove(TAG_ELEMENT_TYPE);
             tag.remove(TAG_ELEMENT_LEVEL);
         }
+    }
+
+    /** 手動 element level ブースト ( 0 以上 )。 */
+    public static int getElementLevelBoost(ItemStack stack) {
+        CompoundTag tag = stack.getTag();
+        return tag == null ? 0 : Math.max(0, tag.getInt(TAG_ELEMENT_LEVEL_BOOST));
+    }
+
+    /** ブーストを設定し ( 0 未満は 0 にクランプ )、 ElementLevel タグを貼り直す。 */
+    public static void setElementLevelBoost(ItemStack stack, int boost) {
+        int clamped = Math.max(0, boost);
+        CompoundTag tag = stack.getOrCreateTag();
+        if (clamped == 0) {
+            tag.remove(TAG_ELEMENT_LEVEL_BOOST);
+        } else {
+            tag.putInt(TAG_ELEMENT_LEVEL_BOOST, clamped);
+        }
+        setCharge(stack, getCharge(stack)); // ElementLevel を再導出
+    }
+
+    /** 実効 element level。 充電されていれば 固定 base 1 + ブースト、 未充電なら 0。
+     *  最大チャージ量には依存しない ( レベルの上がり方を一定にするため )。 */
+    public static int getEffectiveElementLevel(ItemStack stack) {
+        return getCharge(stack) > 0 ? 1 + getElementLevelBoost(stack) : 0;
+    }
+
+    /** 1 ヒットの充電消費。 実効 element level が高いほど徐々に増える。 */
+    public static int getChargeCostPerHit(ItemStack stack) {
+        return CHARGE_COST_PER_HIT
+                + getEffectiveElementLevel(stack) * CHARGE_COST_PER_ELEMENT_LEVEL;
+    }
+
+    /** 現在の属性モードを返す ( 未設定なら電気 )。 */
+    public static String getElementMode(ItemStack stack) {
+        CompoundTag tag = stack.getTag();
+        if (tag != null && tag.contains(TAG_ELEMENT_MODE)
+                && MODE_THUNDER.equalsIgnoreCase(tag.getString(TAG_ELEMENT_MODE))) {
+            return MODE_THUNDER;
+        }
+        return MODE_ELECTRIC;
+    }
+
+    public static boolean isThunderMode(ItemStack stack) {
+        return MODE_THUNDER.equals(getElementMode(stack));
+    }
+
+    /** 属性モードを設定し、 現在の充電量で ElementType タグを貼り直す。 */
+    public static void setElementMode(ItemStack stack, String mode) {
+        String norm = MODE_THUNDER.equalsIgnoreCase(mode) ? MODE_THUNDER : MODE_ELECTRIC;
+        stack.getOrCreateTag().putString(TAG_ELEMENT_MODE, norm);
+        setCharge(stack, getCharge(stack)); // ElementType を新モードで再導出
+    }
+
+    /** 電気 ⇄ 雷 をトグルし、 新しいモード文字列を返す。 */
+    public static String toggleElementMode(ItemStack stack) {
+        String next = isThunderMode(stack) ? MODE_ELECTRIC : MODE_THUNDER;
+        setElementMode(stack, next);
+        return next;
+    }
+
+    /** バックパック充電用。 雷モードなら充電レートを {@link #THUNDER_CHARGE_NUMERATOR}/
+     *  {@link #THUNDER_CHARGE_DENOMINATOR} に減速する ( 電気より貯まりが遅い )。
+     *  微小レートでも進捗 0 にならないよう、 正の入力に対しては最低 1 を保証する。 */
+    public static void addBackpackCharge(ItemStack stack, int baseAmount) {
+        int amount = baseAmount;
+        if (baseAmount > 0 && isThunderMode(stack)) {
+            amount = (int) ((long) baseAmount * THUNDER_CHARGE_NUMERATOR / THUNDER_CHARGE_DENOMINATOR);
+            if (amount <= 0) amount = 1;
+        }
+        addCharge(stack, amount);
     }
 
     /** Element level (1〜3) を max に対する充電割合で算出。 */
@@ -208,7 +300,8 @@ public class VoltaicBladeItem extends SwordItem implements DyeableLeatherItem {
         int charge = getCharge(stack);
         if (charge <= 0) return result;
 
-        addCharge(stack, -CHARGE_COST_PER_HIT);
+        // element level ブーストが高いほど 1 ヒットの消費が徐々に増える。
+        addCharge(stack, -getChargeCostPerHit(stack));
 
         if (attacker.level() instanceof ServerLevel serverLevel) {
             serverLevel.sendParticles(
@@ -273,7 +366,6 @@ public class VoltaicBladeItem extends SwordItem implements DyeableLeatherItem {
         super.appendHoverText(stack, level, tooltip, flag);
         int charge = getCharge(stack);
         int max = getMaxCharge(stack);
-        int lv = chargeToElementLevel(charge, max);
         tooltip.add(Component.translatable(
                 "item.backpack_arsenal.voltaic_blade.charge_tooltip",
                 charge, max
@@ -289,10 +381,27 @@ public class VoltaicBladeItem extends SwordItem implements DyeableLeatherItem {
                     "item.backpack_arsenal.voltaic_blade.capacitor_peel_hint"
             ).withStyle(ChatFormatting.DARK_GRAY));
         }
-        if (lv > 0) {
+        int boost = getElementLevelBoost(stack);
+        // element level の行は MAW ( ElementalTooltipEvent ) が属性色 + ローマ数字で出す
+        // ( "Electric Element N" )。 二重表示を避けるため我々はレベル行を出さず、 充電中は
+        // 1 ヒット消費だけ表示する。 その MAW 行への "(charged)" 付与は
+        // {@link backpackarsenal.client.VoltaicBladeChargedTooltip} が行う。
+        if (charge > 0) {
+            // 「-N charge/hit」ではなく「あと何ヒット撃てるか」を主表示にする。
+            //   1 ヒット消費 = getChargeCostPerHit。 残量 > 0 なら最後の 1 発は必ず出る (端数切り上げ)。
+            int cost = getChargeCostPerHit(stack);
+            int hits = (charge + cost - 1) / cost;
             tooltip.add(Component.translatable(
-                    "item.backpack_arsenal.voltaic_blade.element_tooltip", lv
-            ).withStyle(ChatFormatting.LIGHT_PURPLE));
+                    "item.backpack_arsenal.voltaic_blade.element_hits_tooltip", hits, cost
+            ).withStyle(ChatFormatting.GOLD));
+        } else if (boost > 0) {
+            // 未充電でもブーストは設定済みであることを示す ( 充電すると効く )。
+            tooltip.add(Component.translatable(
+                    "item.backpack_arsenal.voltaic_blade.element_boost_idle_tooltip", boost
+            ).withStyle(ChatFormatting.DARK_GRAY));
+            tooltip.add(Component.translatable(
+                    "item.backpack_arsenal.voltaic_blade.need_charge_tooltip"
+            ).withStyle(ChatFormatting.GRAY));
         } else {
             tooltip.add(Component.translatable(
                     "item.backpack_arsenal.voltaic_blade.need_charge_tooltip"

@@ -1,0 +1,19 @@
+{
+  "_comment": "Voltaic Element Core — 電気⇄雷 属性切替コア。lightning_rod (雷) + amethyst (電気) + copper (導電) + redstone。バランスは適宜調整可。",
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "RAR",
+    "ALA",
+    "RAR"
+  ],
+  "key": {
+    "R": { "item": "minecraft:redstone" },
+    "A": { "item": "minecraft:amethyst_shard" },
+    "L": { "item": "minecraft:lightning_rod" }
+  },
+  "result": {
+    "item": "backpack_arsenal:voltaic_element_core",
+    "count": 1
+  }
+}

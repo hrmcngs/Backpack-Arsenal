@@ -27,6 +27,7 @@ public class ArsenalCreativeTab {
             .icon(() -> new ItemStack(ArsenalItems.ARSENAL_BACKPACK_ELECTRON.get()))
             .displayItems((params, output) -> {
                 output.accept(ArsenalItems.VOLTAIC_BLADE.get());
+                output.accept(ArsenalItems.VOLTAIC_ELEMENT_CORE.get());
                 output.accept(ArsenalItems.ARSENAL_BACKPACK_ELECTRON.get());
                 output.accept(ArsenalItems.BASIC_BACKPACK.get());
                 output.accept(ArsenalItems.VOLTAIC_CHARGER_UPGRADE.get());

@@ -1,0 +1,7 @@
+{
+  "_comment": "Voltaic Element Core — 電気/雷 属性切替コア。テクスチャは voltaic_element_core.png を後で差し替え推奨。",
+  "parent": "item/generated",
+  "textures": {
+    "layer0": "backpack_arsenal:item/voltaic_element_core"
+  }
+}

@@ -83,6 +83,54 @@ public class BackpackArsenalJeiPlugin implements IModPlugin {
             new ResourceLocation(BackpackArsenalMod.MODID, "anvil/growth_charger_per_block")
         ));
 
+        // 属性切替 (voltaic_element_core) の anvil レシピ。 電気⇄雷 の両方向を表示。
+        //   VoltaicElementSwitchAnvilHandler が cost 3 を設定するので JEI にもそう出る。
+        int demoCharge = VoltaicBladeItem.getMaxCharge(new ItemStack(ArsenalItems.VOLTAIC_BLADE.get()));
+        anvilRecipes.add(factory.createAnvilRecipe(
+            bladeChargedMode(demoCharge, VoltaicBladeItem.MODE_ELECTRIC),
+            List.of(new ItemStack(ArsenalItems.VOLTAIC_ELEMENT_CORE.get())),
+            List.of(bladeChargedMode(demoCharge, VoltaicBladeItem.MODE_THUNDER)),
+            new ResourceLocation(BackpackArsenalMod.MODID, "anvil/element_switch_to_thunder")
+        ));
+        anvilRecipes.add(factory.createAnvilRecipe(
+            bladeChargedMode(demoCharge, VoltaicBladeItem.MODE_THUNDER),
+            List.of(new ItemStack(ArsenalItems.VOLTAIC_ELEMENT_CORE.get())),
+            List.of(bladeChargedMode(demoCharge, VoltaicBladeItem.MODE_ELECTRIC)),
+            new ResourceLocation(BackpackArsenalMod.MODID, "anvil/element_switch_to_electric")
+        ));
+
+        // element level ブースト 強化 (glowstone_dust で +1)。 boost 0→1 .. 4→5 の各段階を表示。
+        //   VoltaicElementLevelAnvilHandler が cost = 上げ先レベル ( 1→5 ) を設定するので
+        //   JEI 上で徐々に重くなるのが見える。
+        for (int b = 0; b < VoltaicBladeItem.MAX_ELEMENT_LEVEL_BOOST; b++) {
+            anvilRecipes.add(factory.createAnvilRecipe(
+                bladeChargedBoost(demoCharge, b),
+                List.of(new ItemStack(net.minecraft.world.item.Items.GLOWSTONE_DUST)),
+                List.of(bladeChargedBoost(demoCharge, b + 1)),
+                new ResourceLocation(BackpackArsenalMod.MODID, "anvil/element_boost_up_" + b)
+            ));
+        }
+        // element level ブースト 減少 (redstone で -1)。 代表 1 例 ( boost 1 → 0 )。
+        anvilRecipes.add(factory.createAnvilRecipe(
+            bladeChargedBoost(demoCharge, 1),
+            List.of(new ItemStack(net.minecraft.world.item.Items.REDSTONE)),
+            List.of(bladeChargedBoost(demoCharge, 0)),
+            new ResourceLocation(BackpackArsenalMod.MODID, "anvil/element_boost_down")
+        ));
+        // block でまとめて up/down ( 1 個で survival 上限まで / 0 まで )。
+        anvilRecipes.add(factory.createAnvilRecipe(
+            bladeChargedBoost(demoCharge, 0),
+            List.of(new ItemStack(net.minecraft.world.item.Items.GLOWSTONE)),
+            List.of(bladeChargedBoost(demoCharge, VoltaicBladeItem.MAX_ELEMENT_LEVEL_BOOST)),
+            new ResourceLocation(BackpackArsenalMod.MODID, "anvil/element_boost_up_block")
+        ));
+        anvilRecipes.add(factory.createAnvilRecipe(
+            bladeChargedBoost(demoCharge, VoltaicBladeItem.MAX_ELEMENT_LEVEL_BOOST),
+            List.of(new ItemStack(net.minecraft.world.item.Items.REDSTONE_BLOCK)),
+            List.of(bladeChargedBoost(demoCharge, 0)),
+            new ResourceLocation(BackpackArsenalMod.MODID, "anvil/element_boost_down_block")
+        ));
+
         registration.addRecipes(RecipeTypes.ANVIL, anvilRecipes);
 
         // Item info (JEI の "ℹ" タブ)
@@ -113,6 +161,27 @@ public class BackpackArsenalJeiPlugin implements IModPlugin {
             growthChargerAt(0),
             VanillaTypes.ITEM_STACK,
             Component.translatable("jei.backpack_arsenal.voltaic_growth_charger_upgrade.info"));
+
+        registration.addIngredientInfo(
+            new ItemStack(ArsenalItems.VOLTAIC_ELEMENT_CORE.get()),
+            VanillaTypes.ITEM_STACK,
+            Component.translatable("jei.backpack_arsenal.voltaic_element_core.info"));
+    }
+
+    /** 指定 charge + 属性モードの blade。 属性ツールチップ ( 電気/雷 ) を JEI 上で見せる用。 */
+    private static ItemStack bladeChargedMode(int charge, String mode) {
+        ItemStack s = new ItemStack(ArsenalItems.VOLTAIC_BLADE.get());
+        VoltaicBladeItem.setElementMode(s, mode);
+        VoltaicBladeItem.setCharge(s, charge);
+        return s;
+    }
+
+    /** 指定 charge + element level ブーストの blade。 ブースト表示を JEI 上で見せる用。 */
+    private static ItemStack bladeChargedBoost(int charge, int boost) {
+        ItemStack s = new ItemStack(ArsenalItems.VOLTAIC_BLADE.get());
+        VoltaicBladeItem.setCharge(s, charge);
+        VoltaicBladeItem.setElementLevelBoost(s, boost);
+        return s;
     }
 
     /** 指定 level の growth charger upgrade itemstack を作る。 */

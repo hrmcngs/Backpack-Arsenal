@@ -386,7 +386,8 @@ public class BackpackFeEvents {
                 continue;
             }
 
-            VoltaicBladeItem.addCharge(inner, amount);
+            // 雷モードは電気より充電が遅い ( addBackpackCharge がレート減速を適用 )。
+            VoltaicBladeItem.addBackpackCharge(inner, amount);
             if (handler instanceof IItemHandlerModifiable mod) {
                 mod.setStackInSlot(slot, inner);
             }

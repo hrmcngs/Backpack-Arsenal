@@ -125,7 +125,8 @@ public class BackpackChargingHandler {
                 int before = VoltaicBladeItem.getCharge(inner);
                 if (before >= VoltaicBladeItem.getMaxCharge(inner)) continue;
 
-                VoltaicBladeItem.addCharge(inner, chargeAmount);
+                // 雷モードは電気より充電が遅い ( addBackpackCharge がレート減速を適用 )。
+                VoltaicBladeItem.addBackpackCharge(inner, chargeAmount);
 
                 // 一部の IItemHandler 実装はスロットを直接書き換えないと変更を保存しないため
                 // Modifiable ならスロットに再セットして確実に永続化する。
