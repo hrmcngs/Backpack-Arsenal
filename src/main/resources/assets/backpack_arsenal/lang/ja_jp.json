@@ -4,7 +4,7 @@
   "item.backpack_arsenal.voltaic_blade.charge_tooltip": "§b充電: %s / %s",
   "item.backpack_arsenal.voltaic_blade.element_tooltip": "§d電気属性 Lv %s（発動中）",
   "item.backpack_arsenal.voltaic_blade.element_tooltip_thunder": "§e雷属性 Lv %s（発動中）",
-  "item.backpack_arsenal.voltaic_blade.element_hits_tooltip": "§6⚡ 残り %s / %s ヒット §7(-%s/ヒット)",
+  "item.backpack_arsenal.voltaic_blade.element_hits_tooltip": "§6⚡ 満タンで %s ヒット §7(-%s/ヒット)",
   "item.backpack_arsenal.voltaic_blade.charged_suffix": "（発動中）",
   "item.backpack_arsenal.voltaic_blade.element_boost_idle_tooltip": "§8エレメント強化 +%s（充電で発動）",
   "item.backpack_arsenal.voltaic_blade.need_charge_tooltip": "§7Sophisticated Backpack に納刀して充電してください",

@@ -35,16 +35,21 @@ public class VoltaicElementSwitchAnvilHandler {
         if (right.getItem() != ArsenalItems.VOLTAIC_ELEMENT_CORE.get()) return;
 
         ItemStack output = left.copy();
+        // 属性レベルの強化分 ( ブースト ) は属性を変更しても維持する。
+        int keepBoost = VoltaicBladeItem.getElementLevelBoost(left);
         // 現在モードの反対にトグル ( setElementMode が ElementType タグも貼り直す )。
         String next = VoltaicBladeItem.isThunderMode(left)
                 ? VoltaicBladeItem.MODE_ELECTRIC
                 : VoltaicBladeItem.MODE_THUNDER;
         VoltaicBladeItem.setElementMode(output, next);
+        // copy で維持されるが、 明示的に再設定して「強化分は同じ」を保証する。
+        VoltaicBladeItem.setElementLevelBoost(output, keepBoost);
 
-        // 診断ログ ( capacitor 強化が保持されているか確認用 — 原因切り分け後に削除予定 )。
+        // 診断ログ ( 強化分の保持確認用 — 原因切り分け後に削除予定 )。
         BackpackArsenalMod.LOGGER.info(
-            "[element-switch] mode {} -> {} | capacitor stages {}->{} | max {}->{} | charge {}->{}",
+            "[element-switch] mode {} -> {} | boost {}->{} | capacitor {}->{} | max {}->{} | charge {}->{}",
             VoltaicBladeItem.getElementMode(left), next,
+            keepBoost, VoltaicBladeItem.getElementLevelBoost(output),
             VoltaicBladeItem.getCapacitorStageCount(left), VoltaicBladeItem.getCapacitorStageCount(output),
             VoltaicBladeItem.getMaxCharge(left), VoltaicBladeItem.getMaxCharge(output),
             VoltaicBladeItem.getCharge(left), VoltaicBladeItem.getCharge(output));

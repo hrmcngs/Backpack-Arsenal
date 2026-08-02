@@ -3,7 +3,7 @@
 > *Sheathe your blade. Charge it up. Power your factory.*
 > *納刀する。チャージする。工場を動かす。*
 
-📖 [English](#english) · [日本語](#日本語)
+ [English](#english) · [日本語](#日本語)
 
 ---
 
@@ -23,7 +23,7 @@ Place an Arsenal Backpack with a Voltaic Blade inside and it becomes a Forge Ene
 
 The backpack inventory UI shows a small FE icon at the bottom; hover for the current per-tick output rate. Numbers scale automatically (FE → kFE → MFE → GFE → TFE).
 
-### 🌱 Voltaic Growth Charger — Infinite Upgrade Scaling
+###  Voltaic Growth Charger — Infinite Upgrade Scaling
 
 The standout upgrade: a charger that starts at Level 0 (no boost) and can be **infinitely leveled on an anvil** with redstone. Flat cost per level — no escalating ramp.
 
@@ -40,17 +40,20 @@ Multiplier contribution = Level. Stack 4 Lv-10000 chargers in a single backpack 
 
 ![Anvil leveling: Voltaic Growth Charger + redstone block](https://raw.githubusercontent.com/hrmcngs/Backpack-Arsenal/main/docs/images/04_anvil_leveling.png)
 
-### 🗡️ Voltaic Blade
+###  Voltaic Blade
 
-A katana built on MAW's weapon framework with an Electric elemental damage layer that scales with stored charge.
+A katana built on MAW's weapon framework with an **elemental damage layer that scales with element level**.
 
-- Stores charge in NBT, raising elemental level (Lv 1 → Lv 3) as it fills up
-- Sneak + right-click for a **lightning slam-down** that calls a simulated bolt at the AOE center
-- Right-click slot wired to **Voltaic Dodge** — a backward dash with 1-second invulnerability + electric sparks
-- Charge bar shown directly in the tooltip
-- Apply **Voltaic Capacitor Upgrades (I/II/III)** on an anvil to boost max charge capacity (+256 / +512 / +1024 per stage, up to 5 stages)
+- **Charge stored in NBT** — sheathe it in a backpack to charge. The tooltip shows the charge bar and **how many hits you get when full** (charge ÷ per-hit cost). Every melee hit and every skill consumes charge.
+- **Two elements — switch anytime.** Anvil-combine the blade with a **Voltaic Element Core** to toggle **⚡ Electric ⇄ 🌩️ Thunder**. Charge, capacitors, enchantments **and your element-level enhancement all carry over**.
+  - **Thunder** trades sustain for punch: it **charges slower** in a backpack and **costs ~2× charge per hit** (fewer hits) than Electric.
+- **Element Level enhancement (anvil).** Raise or lower the blade's element level yourself — **elemental damage scales with level**, while each level also **raises the charge cost per hit** (gradually thirstier, so fewer hits). The physical/base damage never changes — only the elemental part.
+  - Glowstone **dust** → **+1** level (stack for a batch, e.g. ×5 → +5); glowstone **block** → jump up toward the cap.
+  - **Redstone** → **−1** level; **redstone block** → drop back to 0.
+- **Voltaic Capacitor Upgrades (I/II/III)** on an anvil raise **max charge capacity** (+256 / +512 / +1024 per stage, up to 5) → more hits before you need to recharge.
+- **MAW skills:** assign **Voltaic Slam-down** (forward AOE + simulated lightning bolt) and **Voltaic Dodge** (backward dash + 1-second invulnerability + sparks) in MAW's Skill Selection. Both draw charge when used.
 
-### 🎒 Arsenal Backpack (Electron)
+###  Arsenal Backpack (Electron)
 
 A custom Sophisticated Backpacks tier built around the Voltaic Blade.
 
@@ -60,7 +63,7 @@ A custom Sophisticated Backpacks tier built around the Voltaic Blade.
 - **Placed as a block, the backpack becomes a FE generator** (see Highlight above)
 - Compatible with all Sophisticated Backpacks **upgrades** (Stack / Pickup / Magnet / Refill / ...)
 
-### 🔌 Voltaic Charger Upgrade (Tier 0 → 5)
+###  Voltaic Charger Upgrade (Tier 0 → 5)
 
 Slot it into the backpack's upgrade column. Multiplier contribution = (tier + 1)²:
 
@@ -79,7 +82,7 @@ Final multiplier = 1 + sum of all installed chargers (Growth Charger contributio
 
 Tap **R** (MAW's weapon-wheel key) once to pull the highest-charged Voltaic Blade out of any equipped backpack. Tap again to slide it back in. Hold to open the regular wheel and pick a specific blade.
 
-### 📜 Crafting
+###  Crafting
 
 | Item | How |
 |---|---|
@@ -88,19 +91,20 @@ Tap **R** (MAW's weapon-wheel key) once to pull the highest-charged Voltaic Blad
 | Voltaic Charger Upgrade tier N | Crafting table |
 | Voltaic Growth Charger | Tier 0 charger + 4 oak saplings + 4 redstone (plus pattern) |
 | Voltaic Capacitor Upgrade I/II/III | Crafting table |
+| Voltaic Element Core | Crafting table (lightning rod + amethyst shards + redstone) — switches the blade's element on an anvil |
 
 All recipes appear in **JEI** with detailed info pages, including anvil-leveling for the Growth Charger.
 
-### 📦 Required / Optional Mods
+###  Required / Optional Mods
 
 | Mod | Required |
 |---|---|
-| [Sophisticated Backpacks](https://www.curseforge.com/minecraft/mc-mods/sophisticated-backpacks) | ✅ Hard dependency |
-| [Sophisticated Core](https://www.curseforge.com/minecraft/mc-mods/sophisticated-core) | ✅ Hard dependency |
-| [The four primitives and Weapons](https://www.curseforge.com/minecraft/mc-mods) | ✅ Hard dependency |
-| [Curios API](https://www.curseforge.com/minecraft/mc-mods/curios) | ✅ Hard dependency |
-| [GeckoLib](https://www.curseforge.com/minecraft/mc-mods/geckolib) | ✅ Hard dependency |
-| [Mekanism](https://www.curseforge.com/minecraft/mc-mods/mekanism) | ✅ Hard dependency — FE generation core |
+| [Sophisticated Backpacks](https://www.curseforge.com/minecraft/mc-mods/sophisticated-backpacks) |  Hard dependency |
+| [Sophisticated Core](https://www.curseforge.com/minecraft/mc-mods/sophisticated-core) |  Hard dependency |
+| [The four primitives and Weapons](https://www.curseforge.com/minecraft/mc-mods) |  Hard dependency |
+| [Curios API](https://www.curseforge.com/minecraft/mc-mods/curios) |  Hard dependency |
+| [GeckoLib](https://www.curseforge.com/minecraft/mc-mods/geckolib) |  Hard dependency |
+| [Mekanism](https://www.curseforge.com/minecraft/mc-mods/mekanism) |  Hard dependency — FE generation core |
 | [Just Enough Items (JEI)](https://www.curseforge.com/minecraft/mc-mods/jei) | Optional — recipe & info pages |
 
 ### 🛠 Versions
@@ -124,11 +128,11 @@ All recipes appear in **JEI** with detailed info pages, including anvil-leveling
 
 Hot-reload with `/backpack_arsenal reload` (OP only).
 
-### 💬 Issues & Feedback
+###  Issues & Feedback
 
 Found a bug? Open an issue on the [GitHub tracker](https://github.com/hrmcngs/Backpack-Arsenal/issues).
 
-### 📄 License
+###  License
 
 MIT — see [LICENSE](https://github.com/hrmcngs/Backpack-Arsenal/blob/main/LICENSE).
 
@@ -154,7 +158,7 @@ Voltaic Blade を入れた Arsenal Backpack を設置すると Forge Energy 発�
 
 backpack を開くと下に小さな FE アイコン。 ホバーで現在の per-tick 発電量を表示 ( FE → kFE → MFE → GFE → TFE 自動切換 )。
 
-### 🌱 Voltaic Growth Charger — 無限強化
+###  Voltaic Growth Charger — 無限強化
 
 目玉アップグレード。 Lv 0 では効果無し、 アンビルでレッドストーンを喰わせて **無限にレベル up** 可能。 **どのレベルでもフラットコスト**:
 
@@ -171,17 +175,20 @@ backpack を開くと下に小さな FE アイコン。 ホバーで現在の pe
 
 ![アンビルでレベル up — レッドストーンブロック投入時](https://raw.githubusercontent.com/hrmcngs/Backpack-Arsenal/main/docs/images/04_anvil_leveling.png)
 
-### 🗡️ Voltaic Blade
+###  Voltaic Blade
 
-MAW 武器フレームワークの上に作られた刀。 充電量に応じて **電気属性ダメージ** がレベルアップします。
+MAW 武器フレームワークの上に作られた刀。 **属性ダメージが属性レベルでスケール** します。
 
-- NBT に充電量を保存 — チャージが満ちると elemental level が Lv1 → Lv3 に上昇
-- **Sneak + 右クリック** で「**雷振り下ろし**」 — AOE 中心に模擬落雷を呼び込む
-- **右クリックスロット = 雷影回避** — 後方へクイックダッシュ + 1 秒間無敵 + 電気スパーク
-- 充電バーがツールチップにそのまま表示される
-- **Voltaic Capacitor Upgrade (I/II/III)** をアンビルで合成すると最大充電量が増加 ( +256 / +512 / +1024、 最大 5 段 )
+- **充電を NBT に保存** — バックパックに納刀して充電。 ツールチップに充電バーと **満タンで何ヒット撃てるか** ( 充電 ÷ 1 ヒット消費 ) を表示。 近接攻撃も技も充電を消費します。
+- **2 属性を切替可能。** アンビルで刀 + **属性切替コア (Voltaic Element Core)** を合成すると **⚡ 電気 ⇄ 🌩️ 雷** をトグル。 充電・capacitor・エンチャント、 そして **属性レベルの強化分もそのまま引き継ぎ** ます。
+  - **雷** は電気よりバックパック充電が **遅く**、 **1 ヒット消費が約 2 倍** ( = ヒット数が少ない )。 火力は高いがサステインが厳しいハイリスク型。
+- **属性レベル強化 ( アンビル )。** 自分でレベルを上げ下げできます — **属性ダメージがレベルで増加**、 その代わりレベルが上がるほど **1 ヒット消費も増える** ( 徐々に燃費が悪化 = ヒット数減 )。 物理 ( ベース ) ダメージは不変で、 属性分だけ伸びます。
+  - グロウストーン**ダスト** → **+1** レベル ( スタックでまとめて、 例: ×5 → +5 )、 グロウストーン**ブロック** → 一気に上限付近まで。
+  - **レッドストーン** → **−1** レベル、 **レッドストーンブロック** → 一気に 0 まで。
+- **Voltaic Capacitor Upgrade (I/II/III)** をアンビルで合成すると **最大充電量** が増加 ( +256 / +512 / +1024、 最大 5 段 ) → 充電し直すまでのヒット数が増える。
+- **MAW スキル:** 「**雷振り下ろし**」 ( 前方 AOE + 模擬落雷 ) と「**雷影回避**」 ( 後方ダッシュ + 1 秒無敵 + スパーク ) を MAW の Skill Selection で割り当て。 どちらも発動時に充電を消費します。
 
-### 🎒 Arsenal Backpack (Electron)
+###  Arsenal Backpack (Electron)
 
 Voltaic Blade と一緒に使う想定で作った独自グレードのバックパック。
 
@@ -191,7 +198,7 @@ Voltaic Blade と一緒に使う想定で作った独自グレードのバック
 - **設置すると Forge Energy 発電機にもなる** ( 上記参照 )
 - Sophisticated Backpacks の **アップグレード** ( Stack / Pickup / Magnet / Refill ... ) と完全互換
 
-### 🔌 Voltaic Charger Upgrade ( tier 0 ~ 5 )
+###  Voltaic Charger Upgrade ( tier 0 ~ 5 )
 
 upgrade スロットに挿すと **刀の充電速度** と **設置 backpack の FE 発電量** の倍率が上がります。 寄与 = (tier + 1)²:
 
@@ -210,7 +217,7 @@ upgrade スロットに挿すと **刀の充電速度** と **設置 backpack �
 
 MAW のウェポンウィール用キー ( **R** ) を **短押し** するだけで、 背負ったバックパック内の最も充電量が多い Voltaic Blade を引き抜きます。 もう一度押すと納刀。 **長押し** で通常のウィールが開いて、 複数の刀を選べます。
 
-### 📜 クラフト
+###  クラフト
 
 | アイテム | レシピ |
 |---|---|
@@ -219,19 +226,20 @@ MAW のウェポンウィール用キー ( **R** ) を **短押し** するだ�
 | Voltaic Charger Upgrade tier N | 作業台 |
 | Voltaic Growth Charger | tier 0 charger + 苗木 × 4 + レッドストーン × 4 ( + 字 ) |
 | Voltaic Capacitor Upgrade I/II/III | 作業台 |
+| 属性切替コア (Voltaic Element Core) | 作業台 ( 避雷針 + アメジスト + レッドストーン ) — アンビルで刀の属性を切替 |
 
 **JEI** が入っていれば、 すべてのレシピと anvil 強化の info ページが自動表示されます。
 
-### 📦 必須 / 任意 MOD
+###  必須 / 任意 MOD
 
 | MOD | 必須 |
 |---|---|
-| [Sophisticated Backpacks](https://www.curseforge.com/minecraft/mc-mods/sophisticated-backpacks) | ✅ 必須 |
-| [Sophisticated Core](https://www.curseforge.com/minecraft/mc-mods/sophisticated-core) | ✅ 必須 |
-| [The four primitives and Weapons](https://www.curseforge.com/minecraft/mc-mods) | ✅ 必須 |
-| [Curios API](https://www.curseforge.com/minecraft/mc-mods/curios) | ✅ 必須 |
-| [GeckoLib](https://www.curseforge.com/minecraft/mc-mods/geckolib) | ✅ 必須 |
-| [Mekanism](https://www.curseforge.com/minecraft/mc-mods/mekanism) | ✅ 必須 ( FE 発電の核 ) |
+| [Sophisticated Backpacks](https://www.curseforge.com/minecraft/mc-mods/sophisticated-backpacks) |  必須 |
+| [Sophisticated Core](https://www.curseforge.com/minecraft/mc-mods/sophisticated-core) |  必須 |
+| [The four primitives and Weapons](https://www.curseforge.com/minecraft/mc-mods) |  必須 |
+| [Curios API](https://www.curseforge.com/minecraft/mc-mods/curios) |  必須 |
+| [GeckoLib](https://www.curseforge.com/minecraft/mc-mods/geckolib) |  必須 |
+| [Mekanism](https://www.curseforge.com/minecraft/mc-mods/mekanism) |  必須 ( FE 発電の核 ) |
 | [Just Enough Items (JEI)](https://www.curseforge.com/minecraft/mc-mods/jei) | 任意 ( レシピ / info 表示 ) |
 
 ### 🛠 対応バージョン
@@ -255,10 +263,10 @@ MAW のウェポンウィール用キー ( **R** ) を **短押し** するだ�
 
 `/backpack_arsenal reload` でホットリロード ( OP 限定 )。
 
-### 💬 バグ報告 / 要望
+###  バグ報告 / 要望
 
 [GitHub Issues](https://github.com/hrmcngs/Backpack-Arsenal/issues) でお願いします。
 
-### 📄 ライセンス
+###  ライセンス
 
 MIT — [LICENSE](https://github.com/hrmcngs/Backpack-Arsenal/blob/main/LICENSE) を参照。

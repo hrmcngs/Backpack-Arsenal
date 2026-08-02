@@ -31,6 +31,8 @@ public class SlamDownSkillAction implements ISkillAction {
 
     public static final double SLAM_RADIUS = 2.5;
     public static final double SLAM_FORWARD = 1.8;
+    /** 叩きつけの固定物理ダメージ ( 属性レベル/充電で増やさない )。 */
+    public static final float SLAM_BASE_DAMAGE = 8.0f;
 
     @Override
     public void execute(Player player, float power) {
@@ -41,12 +43,14 @@ public class SlamDownSkillAction implements ISkillAction {
         ItemStack held = player.getMainHandItem();
         int elementLevel = 0;
         if (held.getItem() instanceof VoltaicBladeItem) {
-            // 実効 element level ( 充電中なら 1 + ブースト ) でスケール。
-            elementLevel = VoltaicBladeItem.getEffectiveElementLevel(held);
-            // 技を放った時点で充電を消費 ( 1 ヒット分、 level が高いほど多い )。
+            // 演出 ( 落雷/スパーク ) 用に充電由来レベルを見るだけ。 物理ダメージには使わない。
+            elementLevel = VoltaicBladeItem.chargeToElementLevel(held);
+            // 技を放った時点で充電を消費。
             VoltaicBladeItem.consumeSkillCharge(held);
         }
-        float slamDamage = (5.0f + elementLevel * 1.5f) * Math.max(0.5f, power);
+        // 叩きつけの物理ダメージは固定 ( 属性レベル/充電で増やさない = 物理は据え置き )。
+        // 属性による上乗せは通常の近接同様、 MAW 側が属性ダメージとして別途処理する。
+        float slamDamage = SLAM_BASE_DAMAGE * Math.max(0.5f, power);
 
         // AOE 中心: プレイヤー前方 SLAM_FORWARD
         Vec3 look = player.getLookAngle();

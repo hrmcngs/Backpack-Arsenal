@@ -72,6 +72,8 @@ public class VoltaicBladeItem extends SwordItem implements DyeableLeatherItem {
      *  雷は電気より貯まるのが遅い、 というバランス。 */
     public static final int THUNDER_CHARGE_NUMERATOR   = 1;
     public static final int THUNDER_CHARGE_DENOMINATOR = 2;
+    /** 雷モードの 1 ヒット消費倍率 ( 電気の {@value} 倍 = 燃費が悪い → ヒット数が少ない )。 */
+    public static final int THUNDER_HIT_COST_MULTIPLIER = 2;
     /** capacitor upgrade を適用した stage 配列 (LIFO)。 各 entry は +bonus 量 (256/512/1024)。
      *  これで tier を区別したまま積めるので、 sneak+RC で 1 stage ずつ剥がせる。 */
     public static final String TAG_CAPACITOR_STAGES = "CapacitorStages";
@@ -226,10 +228,15 @@ public class VoltaicBladeItem extends SwordItem implements DyeableLeatherItem {
         return getCharge(stack) > 0 ? 1 + getElementLevelBoost(stack) : 0;
     }
 
-    /** 1 ヒットの充電消費。 実効 element level が高いほど徐々に増える。 */
+    /** 1 ヒットの充電消費。 実効 element level が高いほど徐々に増える。
+     *  雷モードは {@link #THUNDER_HIT_COST_MULTIPLIER} 倍消費する ( 燃費が悪くヒット数が減る )。 */
     public static int getChargeCostPerHit(ItemStack stack) {
-        return CHARGE_COST_PER_HIT
+        int cost = CHARGE_COST_PER_HIT
                 + getEffectiveElementLevel(stack) * CHARGE_COST_PER_ELEMENT_LEVEL;
+        if (isThunderMode(stack)) {
+            cost *= THUNDER_HIT_COST_MULTIPLIER;
+        }
+        return cost;
     }
 
     /** 技 ( スキル ) 発動時の充電消費。 充電が有れば 1 ヒット分消費して true、 無ければ false。
@@ -395,14 +402,14 @@ public class VoltaicBladeItem extends SwordItem implements DyeableLeatherItem {
         // 1 ヒット消費だけ表示する。 その MAW 行への "(charged)" 付与は
         // {@link backpackarsenal.client.VoltaicBladeChargedTooltip} が行う。
         if (charge > 0) {
-            // 「あと何ヒット撃てるか」を主表示。 現在の残り / 満タン時 の 2 値を出す。
-            //   満タン時 = max / cost なので、 capacitor で最大を上げると ( 充電し直す前でも )
-            //   右側の数字が増えて強化が即座に分かる。 残量 > 0 なら最後の 1 発は出る ( 切り上げ )。
+            // ヒット数は「満タン時に何発撃てるか ( = 最大 ÷ 消費 )」= 刀の能力値で出す。
+            //   capacitor で最大↑ → 即増、 属性レベル↑ → 消費↑で減、 と必ず数字が動く
+            //   ( 現在チャージ基準だと手持ちは充電し直すまで動かず「固定」に見えるため )。
+            //   現在の残量は上の "Charge: X / Y" バーで確認できる。
             int cost = getChargeCostPerHit(stack);
-            int hitsNow  = (charge + cost - 1) / cost;
-            int hitsFull = (max + cost - 1) / cost;
+            int hitsMax = (max + cost - 1) / cost;
             tooltip.add(Component.translatable(
-                    "item.backpack_arsenal.voltaic_blade.element_hits_tooltip", hitsNow, hitsFull, cost
+                    "item.backpack_arsenal.voltaic_blade.element_hits_tooltip", hitsMax, cost
             ).withStyle(ChatFormatting.GOLD));
         } else if (boost > 0) {
             // 未充電でもブーストは設定済みであることを示す ( 充電すると効く )。
