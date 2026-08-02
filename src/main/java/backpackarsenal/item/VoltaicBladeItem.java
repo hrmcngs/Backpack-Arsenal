@@ -232,6 +232,14 @@ public class VoltaicBladeItem extends SwordItem implements DyeableLeatherItem {
                 + getEffectiveElementLevel(stack) * CHARGE_COST_PER_ELEMENT_LEVEL;
     }
 
+    /** 技 ( スキル ) 発動時の充電消費。 充電が有れば 1 ヒット分消費して true、 無ければ false。
+     *  各 SkillAction が発動時にこれを呼ぶ。 */
+    public static boolean consumeSkillCharge(ItemStack stack) {
+        if (getCharge(stack) <= 0) return false;
+        addCharge(stack, -getChargeCostPerHit(stack));
+        return true;
+    }
+
     /** 現在の属性モードを返す ( 未設定なら電気 )。 */
     public static String getElementMode(ItemStack stack) {
         CompoundTag tag = stack.getTag();
@@ -387,12 +395,14 @@ public class VoltaicBladeItem extends SwordItem implements DyeableLeatherItem {
         // 1 ヒット消費だけ表示する。 その MAW 行への "(charged)" 付与は
         // {@link backpackarsenal.client.VoltaicBladeChargedTooltip} が行う。
         if (charge > 0) {
-            // 「-N charge/hit」ではなく「あと何ヒット撃てるか」を主表示にする。
-            //   1 ヒット消費 = getChargeCostPerHit。 残量 > 0 なら最後の 1 発は必ず出る (端数切り上げ)。
+            // 「あと何ヒット撃てるか」を主表示。 現在の残り / 満タン時 の 2 値を出す。
+            //   満タン時 = max / cost なので、 capacitor で最大を上げると ( 充電し直す前でも )
+            //   右側の数字が増えて強化が即座に分かる。 残量 > 0 なら最後の 1 発は出る ( 切り上げ )。
             int cost = getChargeCostPerHit(stack);
-            int hits = (charge + cost - 1) / cost;
+            int hitsNow  = (charge + cost - 1) / cost;
+            int hitsFull = (max + cost - 1) / cost;
             tooltip.add(Component.translatable(
-                    "item.backpack_arsenal.voltaic_blade.element_hits_tooltip", hits, cost
+                    "item.backpack_arsenal.voltaic_blade.element_hits_tooltip", hitsNow, hitsFull, cost
             ).withStyle(ChatFormatting.GOLD));
         } else if (boost > 0) {
             // 未充電でもブーストは設定済みであることを示す ( 充電すると効く )。

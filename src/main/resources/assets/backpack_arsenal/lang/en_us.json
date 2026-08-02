@@ -4,7 +4,7 @@
   "item.backpack_arsenal.voltaic_blade.charge_tooltip": "§bCharge: %s / %s",
   "item.backpack_arsenal.voltaic_blade.element_tooltip": "§dElectric Lv %s (charged)",
   "item.backpack_arsenal.voltaic_blade.element_tooltip_thunder": "§eThunder Lv %s (charged)",
-  "item.backpack_arsenal.voltaic_blade.element_hits_tooltip": "§6⚡ %s hits left §7(-%s/hit)",
+  "item.backpack_arsenal.voltaic_blade.element_hits_tooltip": "§6⚡ %s / %s hits §7(-%s/hit)",
   "item.backpack_arsenal.voltaic_blade.charged_suffix": " (charged)",
   "item.backpack_arsenal.voltaic_blade.element_boost_idle_tooltip": "§8Element Boost +%s (charge to activate)",
   "item.backpack_arsenal.voltaic_blade.need_charge_tooltip": "§7Sheath into a Sophisticated Backpack to charge",

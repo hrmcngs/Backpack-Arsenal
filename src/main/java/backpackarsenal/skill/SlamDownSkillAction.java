@@ -41,12 +41,10 @@ public class SlamDownSkillAction implements ISkillAction {
         ItemStack held = player.getMainHandItem();
         int elementLevel = 0;
         if (held.getItem() instanceof VoltaicBladeItem) {
-            elementLevel = VoltaicBladeItem.chargeToElementLevel(held);
-            // 充電があれば消費 (VoltaicBladeItem#use() と同じ消費量)
-            int charge = VoltaicBladeItem.getCharge(held);
-            if (charge > 0) {
-                VoltaicBladeItem.addCharge(held, -400);
-            }
+            // 実効 element level ( 充電中なら 1 + ブースト ) でスケール。
+            elementLevel = VoltaicBladeItem.getEffectiveElementLevel(held);
+            // 技を放った時点で充電を消費 ( 1 ヒット分、 level が高いほど多い )。
+            VoltaicBladeItem.consumeSkillCharge(held);
         }
         float slamDamage = (5.0f + elementLevel * 1.5f) * Math.max(0.5f, power);
 

@@ -5,8 +5,10 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
+import backpackarsenal.item.VoltaicBladeItem;
 import the_four_primitives_and_weapons.api.ISkillAction;
 
 /**
@@ -22,7 +24,8 @@ import the_four_primitives_and_weapons.api.ISkillAction;
  * MAW SkillRegistry の DASH スロットに登録。Voltaic Blade を持ってる時のみ
  * Skill Selection で dash_rush / leap_slash / shadow_step と並んで選択可能。
  *
- * 充電を消費しない (常に発動可、cooldown は MAW 側 DASH cooldown で管理)。
+ * 発動時に voltaic_blade の充電を 1 ヒット分消費する ( 充電が無くても発動は可、 cooldown は
+ * MAW 側 DASH cooldown で管理 )。
  */
 public class VoltaicDodgeSkillAction implements ISkillAction {
 
@@ -60,6 +63,12 @@ public class VoltaicDodgeSkillAction implements ISkillAction {
     @Override
     public void execute(Player player, float power) {
         Level level = player.level();
+
+        // 技を放った時点で充電を消費 ( voltaic_blade を持っている場合 )。
+        ItemStack held = player.getMainHandItem();
+        if (held.getItem() instanceof VoltaicBladeItem) {
+            VoltaicBladeItem.consumeSkillCharge(held);
+        }
 
         Vec3 dir = getMovementDirection(player);
         // power はダッシュ系では 0 で渡される (MotionExecutor.executeMotion(..., 0.0f))。
