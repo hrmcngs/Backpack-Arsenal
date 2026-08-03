@@ -15,7 +15,7 @@ Designed as an addon for [The four primitives and Weapons (MAW)](https://www.cur
 
 ![Placed Arsenal Backpack on a Mekanism Energy Cube](https://raw.githubusercontent.com/hrmcngs/Backpack-Arsenal/main/docs/images/01_hero_backpack_on_cube.png)
 
-### ⚡ Highlight: Forge Energy Generation
+###  Highlight: Forge Energy Generation
 
 Place an Arsenal Backpack with a Voltaic Blade inside and it becomes a Forge Energy generator that outputs at multipliers scaling with the upgrades you stack. Mekanism's universal cables connect to it directly via the native `IStrictEnergyHandler` API — **no FE↔J conversion loss**.
 
@@ -107,12 +107,12 @@ All recipes appear in **JEI** with detailed info pages, including anvil-leveling
 | [Mekanism](https://www.curseforge.com/minecraft/mc-mods/mekanism) |  Hard dependency — FE generation core |
 | [Just Enough Items (JEI)](https://www.curseforge.com/minecraft/mc-mods/jei) | Optional — recipe & info pages |
 
-### 🛠 Versions
+###  Versions
 
 - **Minecraft:** 1.20.1
 - **Forge:** 47.x or newer
 
-### ⚙ Configuration
+###  Configuration
 
 `config/backpack_arsenal.json` (auto-generated on first launch):
 
