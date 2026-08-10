@@ -162,7 +162,7 @@ jobs:
             build/extractSrg
             build/downloadMCMeta
             build/downloadMcpConfig
-          key: gradle-fg6-v4-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          key: gradle-fg6-v5-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
 
       # 注: MAW jar は build.gradle が CurseMaven 経由 (project 961882, file 8074061)
       # で自動取得するので CI 側で何も用意する必要なし。
@@ -191,7 +191,9 @@ jobs:
       # release_type は resolve job が決定済 (alpha/beta/release)。 build.gradle 側で
       # -Prelease_type を見て jar version の suffix を上書きする (alpha→-alpha、 release→suffix 無し)。
       - name: Build
-        run: ./gradlew assemble -x test --no-daemon -Prelease_type=${{ needs.resolve.outputs.release_type }}
+        env:
+          RELEASE_TYPE: ${{ needs.resolve.outputs.release_type }}
+        run: bash scripts/gradle-assemble-retry.sh
 
       - name: Locate built jar
         id: findjar

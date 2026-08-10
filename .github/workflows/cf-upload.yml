@@ -172,14 +172,14 @@ jobs:
             build/extractSrg
             build/downloadMCMeta
             build/downloadMcpConfig
-          key: gradle-fg6-v4-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          key: gradle-fg6-v5-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
 
       - name: 'Build jar with selected release_type'
         if: steps.parse.outputs.skip != 'true' && steps.parse.outputs.release_type != 'test'
         env:
           NEW_TYPE: ${{ steps.parse.outputs.release_type }}
         run: |
-          ./gradlew assemble -x test --no-daemon -Prelease_type="$NEW_TYPE"
+          RELEASE_TYPE="$NEW_TYPE" bash scripts/gradle-assemble-retry.sh
           JAR=$(ls build/libs/*.jar | grep -v sources | grep -v javadoc | head -1)
           if [ ! -f "$JAR" ]; then
             echo "::error::no jar produced"
