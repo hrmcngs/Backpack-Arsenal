@@ -7,6 +7,7 @@ import backpackarsenal.network.BackpackArsenalNetwork;
 import backpackarsenal.network.DrawFromBackpackPacket;
 import backpackarsenal.network.SheathToBackpackPacket;
 import backpackarsenal.util.BackpackScanner;
+import backpackarsenal.util.ArsenalWeaponPair;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -116,10 +117,10 @@ public class BackpackDrawClient {
 
     private static Mode determineMode(Player player) {
         ItemStack mainHand = player.getMainHandItem();
-        if (mainHand.getItem() == ArsenalItems.VOLTAIC_BLADE.get() && hasEmptyArsenalSlot(player)) {
+        if (ArsenalWeaponPair.isSupportedWeapon(mainHand) && hasEmptyArsenalSlot(player, mainHand)) {
             return Mode.SHEATH;
         }
-        if (mainHand.isEmpty() && hasVoltaicBladeInAnyArsenal(player)) {
+        if (mainHand.isEmpty() && hasBladeInAnyArsenal(player)) {
             return Mode.DRAW;
         }
         return null;
@@ -151,7 +152,7 @@ public class BackpackDrawClient {
         }
     }
 
-    private static boolean hasVoltaicBladeInAnyArsenal(Player player) {
+    private static boolean hasBladeInAnyArsenal(Player player) {
         // ★ client 側では ItemStack の ITEM_HANDLER capability は空を返す
         //   (SB は中身をサーバー側 UUID 保管し、client NBT には載せない)。
         //   そのため capability を直接 scan すると常に 0 本判定になり、抜刀が
@@ -160,17 +161,19 @@ public class BackpackDrawClient {
         AtomicBoolean found = new AtomicBoolean(false);
         BackpackScanner.forEachArsenalBackpack(player, backpackStack -> {
             if (found.get()) return;
-            if (ArsenalBackpackItem.countVoltaicInRegularSlots(backpackStack) > 0) {
+            if (ArsenalBackpackItem.countVoltaicInRegularSlots(backpackStack) > 0
+                    || ArsenalBackpackItem.hasLoadedFireBlade(backpackStack)) {
                 found.set(true);
             }
         });
         return found.get();
     }
 
-    private static boolean hasEmptyArsenalSlot(Player player) {
+    private static boolean hasEmptyArsenalSlot(Player player, ItemStack weapon) {
         AtomicBoolean found = new AtomicBoolean(false);
         BackpackScanner.forEachArsenalBackpack(player, backpackStack -> {
             if (found.get()) return;
+            if (!ArsenalWeaponPair.matches(backpackStack, weapon)) return;
             IItemHandler h = backpackStack.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
             if (h == null) return;
             for (int s = 0; s < h.getSlots(); s++) {

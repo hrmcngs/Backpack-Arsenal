@@ -31,6 +31,8 @@ public class ArsenalCreativeTab {
                 output.accept(ArsenalItems.ARSENAL_BACKPACK_ELECTRON.get());
                 output.accept(ArsenalItems.FIRE_BLADE.get());
                 output.accept(ArsenalItems.ARSENAL_BACKPACK_FIRE.get());
+                output.accept(ArsenalItems.GAS_SELECTOR_ETHENE.get());
+                output.accept(ArsenalItems.GAS_SELECTOR_HYDROGEN_CHLORIDE.get());
                 output.accept(ArsenalItems.BASIC_BACKPACK.get());
                 output.accept(ArsenalItems.VOLTAIC_CHARGER_UPGRADE.get());
                 output.accept(ArsenalItems.VOLTAIC_CHARGER_UPGRADE_TIER_1.get());

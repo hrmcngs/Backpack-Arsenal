@@ -7,6 +7,8 @@
     "backpack_arsenal:voltaic_charger_upgrade_tier_3",
     "backpack_arsenal:voltaic_charger_upgrade_tier_4",
     "backpack_arsenal:voltaic_charger_upgrade_tier_5",
-    "backpack_arsenal:voltaic_growth_charger_upgrade"
+    "backpack_arsenal:voltaic_growth_charger_upgrade",
+    "backpack_arsenal:gas_selector_ethene",
+    "backpack_arsenal:gas_selector_hydrogen_chloride"
   ]
 }

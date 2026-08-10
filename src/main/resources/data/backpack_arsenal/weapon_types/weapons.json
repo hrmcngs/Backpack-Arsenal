@@ -21,7 +21,8 @@
     "katana": {
       "display_name": "刀",
       "items": [
-        "backpack_arsenal:voltaic_blade"
+        "backpack_arsenal:voltaic_blade",
+        "backpack_arsenal:fire_blade"
       ]
     }
   },
@@ -31,6 +32,13 @@
       "special_motions": {
         "combat": ["voltaic_slam_down"],
         "dash":   ["voltaic_step"]
+      }
+    },
+    "backpack_arsenal:fire_blade": {
+      "enabled": true,
+      "special_motions": {
+        "combat": ["voltaic_slam_down"],
+        "dash": ["voltaic_step"]
       }
     }
   }

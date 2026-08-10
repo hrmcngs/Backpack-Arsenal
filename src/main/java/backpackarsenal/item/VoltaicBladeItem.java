@@ -67,6 +67,7 @@ public class VoltaicBladeItem extends SwordItem implements DyeableLeatherItem {
     public static final String TAG_ELEMENT_MODE = "ElementMode";
     public static final String MODE_ELECTRIC = "ELECTRIC"; // 電気属性 ( 既定 )
     public static final String MODE_THUNDER  = "THUNDER";  // 雷属性
+    public static final String MODE_FIRE     = "FIRE";     // Fire Blade 固定
 
     /** 雷モードのバックパック充電レート ( 電気の {@value}/{@value} 倍 = 遅い )。
      *  雷は電気より貯まるのが遅い、 というバランス。 */
@@ -249,6 +250,9 @@ public class VoltaicBladeItem extends SwordItem implements DyeableLeatherItem {
 
     /** 現在の属性モードを返す ( 未設定なら電気 )。 */
     public static String getElementMode(ItemStack stack) {
+        if (stack.getItem() == backpackarsenal.init.ArsenalItems.FIRE_BLADE.get()) {
+            return MODE_FIRE;
+        }
         CompoundTag tag = stack.getTag();
         if (tag != null && tag.contains(TAG_ELEMENT_MODE)
                 && MODE_THUNDER.equalsIgnoreCase(tag.getString(TAG_ELEMENT_MODE))) {
@@ -263,7 +267,12 @@ public class VoltaicBladeItem extends SwordItem implements DyeableLeatherItem {
 
     /** 属性モードを設定し、 現在の充電量で ElementType タグを貼り直す。 */
     public static void setElementMode(ItemStack stack, String mode) {
-        String norm = MODE_THUNDER.equalsIgnoreCase(mode) ? MODE_THUNDER : MODE_ELECTRIC;
+        String norm;
+        if (stack.getItem() == backpackarsenal.init.ArsenalItems.FIRE_BLADE.get()) {
+            norm = MODE_FIRE;
+        } else {
+            norm = MODE_THUNDER.equalsIgnoreCase(mode) ? MODE_THUNDER : MODE_ELECTRIC;
+        }
         stack.getOrCreateTag().putString(TAG_ELEMENT_MODE, norm);
         setCharge(stack, getCharge(stack)); // ElementType を新モードで再導出
     }
@@ -318,9 +327,10 @@ public class VoltaicBladeItem extends SwordItem implements DyeableLeatherItem {
         // element level ブーストが高いほど 1 ヒットの消費が徐々に増える。
         addCharge(stack, -getChargeCostPerHit(stack));
 
+        boolean fire = stack.getItem() == backpackarsenal.init.ArsenalItems.FIRE_BLADE.get();
         if (attacker.level() instanceof ServerLevel serverLevel) {
             serverLevel.sendParticles(
-                ParticleTypes.ELECTRIC_SPARK,
+                fire ? ParticleTypes.FLAME : ParticleTypes.ELECTRIC_SPARK,
                 target.getX(), target.getY() + target.getBbHeight() * 0.5, target.getZ(),
                 20, 0.3, 0.4, 0.3, 0.15
             );
@@ -332,7 +342,8 @@ public class VoltaicBladeItem extends SwordItem implements DyeableLeatherItem {
         }
         attacker.level().playSound(null,
             attacker.getX(), attacker.getY(), attacker.getZ(),
-            SoundEvents.LIGHTNING_BOLT_IMPACT, SoundSource.PLAYERS, 0.35f, 1.6f);
+            fire ? SoundEvents.FIRECHARGE_USE : SoundEvents.LIGHTNING_BOLT_IMPACT,
+            SoundSource.PLAYERS, 0.35f, fire ? 1.1f : 1.6f);
 
         return result;
     }
@@ -368,6 +379,12 @@ public class VoltaicBladeItem extends SwordItem implements DyeableLeatherItem {
 
     @Override
     public int getBarColor(ItemStack stack) {
+        if (stack.getItem() == backpackarsenal.init.ArsenalItems.FIRE_BLADE.get()) {
+            int max = getMaxCharge(stack);
+            float ratio = max <= 0 ? 0f : getCharge(stack) / (float) max;
+            int green = 0x35 + Math.round(0x75 * ratio);
+            return (0xFF << 16) | (green << 8) | 0x18;
+        }
         int max = getMaxCharge(stack);
         float ratio = max <= 0 ? 0f : getCharge(stack) / (float) max;
         int r = 0x55 + Math.round(0xAA * ratio);
@@ -385,6 +402,12 @@ public class VoltaicBladeItem extends SwordItem implements DyeableLeatherItem {
                 "item.backpack_arsenal.voltaic_blade.charge_tooltip",
                 charge, max
         ).withStyle(ChatFormatting.AQUA));
+        double attackRange = 3.0
+            + the_four_primitives_and_weapons.skill.WeaponStatsRegistry.attackRangeBonus(stack);
+        tooltip.add(Component.translatable(
+                "item.backpack_arsenal.weapon.attack_range",
+                ItemStack.ATTRIBUTE_MODIFIER_FORMAT.format(attackRange)
+        ).withStyle(ChatFormatting.DARK_GREEN));
         int stageCount = getCapacitorStageCount(stack);
         if (stageCount > 0) {
             int totalBonus = getCapacitorBonusTotal(stack);

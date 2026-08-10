@@ -2,6 +2,7 @@ package backpackarsenal.network;
 
 import backpackarsenal.init.ArsenalItems;
 import backpackarsenal.util.BackpackScanner;
+import backpackarsenal.util.ArsenalWeaponPair;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
@@ -46,12 +47,13 @@ public class SheathToBackpackPacket {
 
     private static void sheathIntoFirstArsenalBackpack(ServerPlayer player) {
         ItemStack mainHand = player.getMainHandItem();
-        if (mainHand.getItem() != ArsenalItems.VOLTAIC_BLADE.get()) return;
+        if (!ArsenalWeaponPair.isSupportedWeapon(mainHand)) return;
 
         List<ItemStack> targets = new ArrayList<>();
         BackpackScanner.forEachArsenalBackpack(player, targets::add);
 
         for (ItemStack backpackStack : targets) {
+            if (!ArsenalWeaponPair.matches(backpackStack, mainHand)) continue;
             IItemHandler handler = backpackStack
                 .getCapability(ForgeCapabilities.ITEM_HANDLER)
                 .orElse(null);

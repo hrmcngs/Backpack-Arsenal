@@ -8,6 +8,7 @@ import backpackarsenal.item.FireBladeItem;
 import backpackarsenal.item.VoltaicCapacitorUpgradeItem;
 import backpackarsenal.upgrade.VoltaicChargerUpgradeItem;
 import backpackarsenal.upgrade.VoltaicGrowthUpgradeItem;
+import backpackarsenal.upgrade.GasSelectorUpgradeItem;
 import net.minecraft.world.item.Item;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
@@ -42,6 +43,12 @@ public class ArsenalItems {
         REGISTRY.register("fire_blade", FireBladeItem::new);
     public static final RegistryObject<Item> ARSENAL_BACKPACK_FIRE =
         REGISTRY.register("arsenal_backpack_fire", FireBackpackItem::new);
+    public static final RegistryObject<GasSelectorUpgradeItem> GAS_SELECTOR_ETHENE =
+        REGISTRY.register("gas_selector_ethene",
+            () -> new GasSelectorUpgradeItem(GasSelectorUpgradeItem.Mode.ETHENE));
+    public static final RegistryObject<GasSelectorUpgradeItem> GAS_SELECTOR_HYDROGEN_CHLORIDE =
+        REGISTRY.register("gas_selector_hydrogen_chloride",
+            () -> new GasSelectorUpgradeItem(GasSelectorUpgradeItem.Mode.HYDROGEN_CHLORIDE));
 
     /** Voltaic Charger Upgrade tier 0 (base). 寄与 +1 (1枚で multiplier=2)。
      *  上位 tier は {@link #VOLTAIC_CHARGER_UPGRADE_TIER_1} 〜 {@link #VOLTAIC_CHARGER_UPGRADE_TIER_4}。 */

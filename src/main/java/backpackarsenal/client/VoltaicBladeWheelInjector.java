@@ -7,6 +7,7 @@ import backpackarsenal.network.BackpackArsenalNetwork;
 import backpackarsenal.network.DrawFromBackpackPacket;
 import backpackarsenal.network.SheathToBackpackPacket;
 import backpackarsenal.util.BackpackScanner;
+import backpackarsenal.util.ArsenalWeaponPair;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -102,7 +103,7 @@ public class VoltaicBladeWheelInjector {
             boolean isDrawMode  = (mode == WeaponWheelState.WheelMode.DRAW)
                     || (mode == null && mainHand.isEmpty());
             boolean isSheathMode = (mode == WeaponWheelState.WheelMode.SHEATH)
-                    || (mode == null && mainHand.getItem() == ArsenalItems.VOLTAIC_BLADE.get());
+                    || (mode == null && ArsenalWeaponPair.isSupportedWeapon(mainHand));
 
             BackpackScanner.forEachArsenalBackpackWithSource(player, (backpackStack, source) -> {
                 if (isDrawMode) {
@@ -112,13 +113,17 @@ public class VoltaicBladeWheelInjector {
                     //   代わりにサーバーが同期している NBT count を参照して、 収納本数ぶんの
                     //   抜刀エントリ ( 表示用アイコン ) を作る。 実際の抜刀は DrawFromBackpackPacket
                     //   がサーバー権威のインベントリから行うので、 アイコンは placeholder で良い。
-                    int count = ArsenalBackpackItem.countVoltaicInRegularSlots(backpackStack);
+                    boolean firePack = backpackStack.getItem() == ArsenalItems.ARSENAL_BACKPACK_FIRE.get();
+                    int count = firePack
+                        ? (ArsenalBackpackItem.hasLoadedFireBlade(backpackStack) ? 1 : 0)
+                        : ArsenalBackpackItem.countVoltaicInRegularSlots(backpackStack);
                     for (int n = 0; n < count; n++) {
                         addEntry(list, backpackStack,
-                                new ItemStack(ArsenalItems.VOLTAIC_BLADE.get()), source);
+                                new ItemStack(firePack ? ArsenalItems.FIRE_BLADE.get()
+                                    : ArsenalItems.VOLTAIC_BLADE.get()), source);
                     }
                 } else if (isSheathMode) {
-                    if (mainHand.getItem() != ArsenalItems.VOLTAIC_BLADE.get()) return;
+                    if (!ArsenalWeaponPair.matches(backpackStack, mainHand)) return;
                     IItemHandler handler = backpackStack
                         .getCapability(ForgeCapabilities.ITEM_HANDLER)
                         .orElse(null);
@@ -200,6 +205,6 @@ public class VoltaicBladeWheelInjector {
 
     /** ArsenalBackpack 限定判定 (バニラ SB バックパックは false) */
     public static boolean isArsenalBackpack(ItemStack stack) {
-        return !stack.isEmpty() && stack.getItem() == ArsenalItems.ARSENAL_BACKPACK_ELECTRON.get();
+        return BackpackScanner.isArsenalBackpack(stack);
     }
 }

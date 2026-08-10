@@ -43,9 +43,14 @@ public class VoltaicBladeChargedTooltip {
         if (level <= 0) return;
 
         // MAW 行の文字列を再構築 ( 属性名 + " " + ローマ数字 )。
-        String elementKey = VoltaicBladeItem.isThunderMode(stack)
-                ? "tooltip.the_four_primitives_and_weapons.element.thunder"
-                : "tooltip.the_four_primitives_and_weapons.element.electric";
+        String elementKey;
+        if (stack.getItem() == backpackarsenal.init.ArsenalItems.FIRE_BLADE.get()) {
+            elementKey = "tooltip.the_four_primitives_and_weapons.element.fire";
+        } else {
+            elementKey = VoltaicBladeItem.isThunderMode(stack)
+                    ? "tooltip.the_four_primitives_and_weapons.element.thunder"
+                    : "tooltip.the_four_primitives_and_weapons.element.electric";
+        }
         String expected = I18n.get(elementKey) + " " + ElementalTooltipEvent.toRoman(level);
 
         List<Component> tip = event.getToolTip();

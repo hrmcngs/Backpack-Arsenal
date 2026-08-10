@@ -2,6 +2,7 @@ package backpackarsenal.network;
 
 import backpackarsenal.init.ArsenalItems;
 import backpackarsenal.util.BackpackScanner;
+import backpackarsenal.util.ArsenalWeaponPair;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
@@ -46,7 +47,7 @@ public class DrawFromBackpackPacket {
     }
 
     private static void drawFromAnyArsenalBackpack(ServerPlayer player) {
-        if (player.getMainHandItem().getItem() == ArsenalItems.VOLTAIC_BLADE.get()) return;
+        if (ArsenalWeaponPair.isSupportedWeapon(player.getMainHandItem())) return;
 
         List<ItemStack> backpacks = new ArrayList<>();
         BackpackScanner.forEachArsenalBackpack(player, backpacks::add);
@@ -61,7 +62,7 @@ public class DrawFromBackpackPacket {
 
             for (int slot = 0; slot < mod.getSlots(); slot++) {
                 ItemStack inner = mod.getStackInSlot(slot);
-                if (inner.getItem() != ArsenalItems.VOLTAIC_BLADE.get()) continue;
+                if (!ArsenalWeaponPair.matches(backpackStack, inner)) continue;
 
                 ItemStack drawn = inner.copy();
 

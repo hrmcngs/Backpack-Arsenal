@@ -121,7 +121,8 @@ public class BackpackChargingHandler {
             ItemStack inner = handler.getStackInSlot(slot);
             if (inner.isEmpty()) continue;
 
-            if (inner.getItem() == ArsenalItems.VOLTAIC_BLADE.get()) {
+            if (inner.getItem() == ArsenalItems.VOLTAIC_BLADE.get()
+                    || inner.getItem() == ArsenalItems.FIRE_BLADE.get()) {
                 int before = VoltaicBladeItem.getCharge(inner);
                 if (before >= VoltaicBladeItem.getMaxCharge(inner)) continue;
 
