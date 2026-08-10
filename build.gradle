@@ -21,8 +21,8 @@ repositories {
 }
 
 // Register this before ForgeGradle applies its own afterEvaluate hook. The
-// plugin adds the legacy root late, so remove only that repository after it has
-// finished configuring it, while retaining the filtered /releases endpoint.
+// plugin adds the legacy root late, so remove that repository before its
+// patcher validation and leave only the working /releases endpoint available.
 afterEvaluate {
     repositories.removeAll { repo ->
         repo instanceof org.gradle.api.artifacts.repositories.MavenArtifactRepository
