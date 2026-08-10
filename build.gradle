@@ -7,16 +7,31 @@ buildscript {
         classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '[6.0,6.2)', changing: true
     }
 }
+
+repositories {
+    maven {
+        url 'https://maven.minecraftforge.net/releases'
+        content {
+            includeGroup 'net.minecraftforge'
+            includeGroup 'cpw.mods'
+            includeGroup 'de.oceanlabs.mcp'
+            includeGroup 'org.spongepowered'
+        }
+    }
+}
+
+// Register this before ForgeGradle applies its own afterEvaluate hook. The
+// plugin adds the legacy root late, so remove only that repository after it has
+// finished configuring it, while retaining the filtered /releases endpoint.
+afterEvaluate {
+    repositories.removeAll { repo ->
+        repo instanceof org.gradle.api.artifacts.repositories.MavenArtifactRepository
+                && repo.url.toString().replaceAll('/+$', '') == 'https://maven.minecraftforge.net'
+    }
+}
+
 apply plugin: 'net.minecraftforge.gradle'
 apply plugin: 'eclipse'
-
-// ForgeGradle adds the legacy Forge Maven root to every project repository.
-// That endpoint currently answers missing artifacts (including Mojang/LWJGL
-// groups) with HTTP 200 HTML, so Gradle accepts corrupt files instead of trying
-// the next repository. CI primes the required Forge userdev JAR explicitly.
-repositories.removeAll { repo ->
-    repo.hasProperty('url') && repo.url.host == 'maven.minecraftforge.net'
-}
 
 // =====================================================================
 // Backpack Arsenal — Sophisticated Backpacks 連携アドオン

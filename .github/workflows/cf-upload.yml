@@ -174,10 +174,6 @@ jobs:
             build/downloadMcpConfig
           key: gradle-fg6-v4-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
 
-      - name: 'Prime Forge artifacts'
-        if: steps.parse.outputs.skip != 'true' && steps.parse.outputs.release_type != 'test'
-        run: bash scripts/prime-forge-cache.sh
-
       - name: 'Build jar with selected release_type'
         if: steps.parse.outputs.skip != 'true' && steps.parse.outputs.release_type != 'test'
         env:
