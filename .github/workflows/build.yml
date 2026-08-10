@@ -156,7 +156,6 @@ jobs:
             ~/.gradle/caches/jars-9
             ~/.gradle/caches/transforms-3
             ~/.gradle/caches/forge_gradle
-            !~/.gradle/caches/forge_gradle/maven_downloader
             ~/.gradle/wrapper
             build/createMcpToSrg
             build/createSrgToMcp
@@ -164,6 +163,20 @@ jobs:
             build/downloadMCMeta
             build/downloadMcpConfig
           key: gradle-fg6-v4-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+
+      # Forge の legacy Maven endpoint は userdev.jar に対して HTTP 200 の
+      # HTML redirect を返すことがあり、ForgeGradle はそれを JAR として cache
+      # してしまう。実体を返す /releases endpoint から先に配置して検証する。
+      - name: Prime Forge userdev artifact
+        run: |
+          USERDEV_DIR="$HOME/.gradle/caches/forge_gradle/maven_downloader/net/minecraftforge/forge/1.20.1-47.1.0"
+          USERDEV_JAR="$USERDEV_DIR/forge-1.20.1-47.1.0-userdev.jar"
+          USERDEV_URL="https://maven.minecraftforge.net/releases/net/minecraftforge/forge/1.20.1-47.1.0/forge-1.20.1-47.1.0-userdev.jar"
+          mkdir -p "$USERDEV_DIR"
+          curl --fail --location --retry 3 --retry-all-errors --output "$USERDEV_JAR.part" "$USERDEV_URL"
+          unzip -tq "$USERDEV_JAR.part"
+          mv "$USERDEV_JAR.part" "$USERDEV_JAR"
+          curl --fail --location --retry 3 --retry-all-errors --output "$USERDEV_JAR.md5" "$USERDEV_URL.md5"
 
       # 注: MAW jar は build.gradle が CurseMaven 経由 (project 961882, file 8074061)
       # で自動取得するので CI 側で何も用意する必要なし。
