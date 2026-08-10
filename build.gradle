@@ -10,6 +10,14 @@ buildscript {
 apply plugin: 'net.minecraftforge.gradle'
 apply plugin: 'eclipse'
 
+// ForgeGradle adds the legacy Forge Maven root to every project repository.
+// That endpoint currently answers missing artifacts (including Mojang/LWJGL
+// groups) with HTTP 200 HTML, so Gradle accepts corrupt files instead of trying
+// the next repository. CI primes the required Forge userdev JAR explicitly.
+repositories.removeAll { repo ->
+    repo.hasProperty('url') && repo.url.host == 'maven.minecraftforge.net'
+}
+
 // =====================================================================
 // Backpack Arsenal — Sophisticated Backpacks 連携アドオン
 // 本体: The four primitives and Weapons
