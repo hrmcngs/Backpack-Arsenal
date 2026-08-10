@@ -166,13 +166,14 @@ jobs:
             ~/.gradle/caches/jars-9
             ~/.gradle/caches/transforms-3
             ~/.gradle/caches/forge_gradle
+            !~/.gradle/caches/forge_gradle/maven_downloader
             ~/.gradle/wrapper
             build/createMcpToSrg
             build/createSrgToMcp
             build/extractSrg
             build/downloadMCMeta
             build/downloadMcpConfig
-          key: gradle-fg6-v3-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          key: gradle-fg6-v4-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
 
       - name: 'Build jar with selected release_type'
         if: steps.parse.outputs.skip != 'true' && steps.parse.outputs.release_type != 'test'
