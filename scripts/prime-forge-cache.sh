@@ -24,6 +24,9 @@ artifacts=(
 for artifact in "${artifacts[@]}"; do
   target="$download_root/$artifact"
   if [[ -f "$target" ]] && unzip -tq "$target" >/dev/null 2>&1; then
+    if [[ ! -f "$target.md5" ]]; then
+      openssl dgst -md5 "$target" | awk '{print $NF}' > "$target.md5"
+    fi
     continue
   fi
 
@@ -61,6 +64,9 @@ jq -r '
 while IFS=$'\t' read -r artifact url; do
   target="$download_root/$artifact"
   if [[ -f "$target" ]] && unzip -tq "$target" >/dev/null 2>&1; then
+    if [[ ! -f "$target.md5" ]]; then
+      openssl dgst -md5 "$target" | awk '{print $NF}' > "$target.md5"
+    fi
     continue
   fi
   mkdir -p "$(dirname "$target")"
@@ -68,4 +74,5 @@ while IFS=$'\t' read -r artifact url; do
     --output "$target.part" "$url"
   unzip -tq "$target.part" >/dev/null
   mv "$target.part" "$target"
+  openssl dgst -md5 "$target" | awk '{print $NF}' > "$target.md5"
 done
