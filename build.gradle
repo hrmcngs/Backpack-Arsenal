@@ -12,7 +12,10 @@ buildscript {
 // legacy root endpoint can return a 200 HTML redirect, which ForgeGradle treats
 // as a userdev JAR and later fails to unzip.
 repositories {
-    maven { url 'https://maven.minecraftforge.net/releases' }
+    maven {
+        url 'https://maven.minecraftforge.net/releases'
+        content { includeGroup 'net.minecraftforge' }
+    }
 }
 
 apply plugin: 'net.minecraftforge.gradle'
