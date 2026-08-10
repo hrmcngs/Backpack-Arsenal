@@ -81,6 +81,12 @@ public class FireBackpackGasEvents {
         // transmitter networks, whose handlers may reject a plain direct insertion.
         long sent = mekanism.common.util.ChemicalUtil.emit(
             java.util.EnumSet.allOf(Direction.class), offered, source);
+        // Some transmitter states do not expose a sided handler until their visual
+        // connection has refreshed. Fall back to the network handler queried without
+        // a side so a newly placed pressurized tube can still receive the gas.
+        if (sent == 0) {
+            sent = pushToUnsidedNeighbors(source, gas, budget);
+        }
         if (sent > 0) {
             gas.extractChemical(sent, mekanism.api.Action.EXECUTE);
             if (!loggedFirstTransfer) {
@@ -90,6 +96,34 @@ public class FireBackpackGasEvents {
                     sent, gas.getMode());
             }
         }
+    }
+
+    private static long pushToUnsidedNeighbors(BlockEntity source,
+                                                FireBackpackGasHandler gas,
+                                                long budget) {
+        if (source.getLevel() == null) return 0;
+        long remainingBudget = budget;
+        for (Direction direction : Direction.values()) {
+            if (remainingBudget <= 0) break;
+            BlockEntity neighbor = source.getLevel().getBlockEntity(
+                source.getBlockPos().relative(direction));
+            if (neighbor == null) continue;
+            var optional = neighbor.getCapability(Capabilities.GAS_HANDLER, null);
+            if (!optional.isPresent()) continue;
+            final long offerAmount = remainingBudget;
+            final long[] accepted = {0};
+            optional.ifPresent(handler -> {
+                GasStack stack = new GasStack(gas.getGas(), offerAmount);
+                GasStack simulated = handler.insertChemical(stack, mekanism.api.Action.SIMULATE);
+                long canAccept = offerAmount - (simulated.isEmpty() ? 0 : simulated.getAmount());
+                if (canAccept <= 0) return;
+                GasStack remainder = handler.insertChemical(
+                    new GasStack(gas.getGas(), canAccept), mekanism.api.Action.EXECUTE);
+                accepted[0] = canAccept - (remainder.isEmpty() ? 0 : remainder.getAmount());
+            });
+            remainingBudget -= accepted[0];
+        }
+        return budget - remainingBudget;
     }
 
     private static backpackarsenal.upgrade.GasSelectorUpgradeItem.Mode selectedMode(BlockEntity be) {
