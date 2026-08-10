@@ -116,6 +116,8 @@ public class BackpackArsenalMod {
                 net.p3pp3rf1y.sophisticatedbackpacks.init.ModBlocks.BACKPACK_TILE_TYPE.get();
             net.minecraft.world.level.block.Block ourBlock =
                 backpackarsenal.init.ArsenalBlocks.ARSENAL_BACKPACK_ELECTRON_BLOCK.get();
+            net.minecraft.world.level.block.Block fireBlock =
+                backpackarsenal.init.ArsenalBlocks.ARSENAL_BACKPACK_FIRE_BLOCK.get();
 
             java.lang.reflect.Field validBlocksField;
             try {
@@ -133,6 +135,7 @@ public class BackpackArsenalMod {
             java.util.Set<net.minecraft.world.level.block.Block> newValid =
                 new java.util.HashSet<>(oldValid);
             newValid.add(ourBlock);
+            newValid.add(fireBlock);
             validBlocksField.set(beType, java.util.Set.copyOf(newValid));
             LOGGER.info("[{}] Injected {} into BackpackBlockEntityType.validBlocks (now {} entries)",
                 MODID, ourBlock, newValid.size());
@@ -183,6 +186,10 @@ public class BackpackArsenalMod {
                 top.theillusivec4.curios.api.client.CuriosRendererRegistry.register(
                     backpackarsenal.init.ArsenalItems.ARSENAL_BACKPACK_ELECTRON.get(),
                     backpackarsenal.client.render.ArsenalBackpackCurioRenderer::new
+                );
+                top.theillusivec4.curios.api.client.CuriosRendererRegistry.register(
+                    backpackarsenal.init.ArsenalItems.ARSENAL_BACKPACK_FIRE.get(),
+                    net.p3pp3rf1y.sophisticatedbackpacks.compat.curios.BackpackCurioRenderer::new
                 );
                 top.theillusivec4.curios.api.client.CuriosRendererRegistry.register(
                     backpackarsenal.init.ArsenalItems.BASIC_BACKPACK.get(),

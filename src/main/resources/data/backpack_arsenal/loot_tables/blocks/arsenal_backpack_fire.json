@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:block",
+  "pools": [{
+    "rolls": 1,
+    "entries": [{"type":"minecraft:item","name":"backpack_arsenal:arsenal_backpack_fire"}],
+    "conditions": [{"condition":"minecraft:survives_explosion"}]
+  }]
+}

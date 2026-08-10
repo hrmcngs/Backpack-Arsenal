@@ -142,7 +142,8 @@ public class ArsenalBackpackBlockEntityRenderer
     }
 
     private static boolean isArsenalBlock(BackpackBlockEntity be) {
-        return be.getBlockState().getBlock()
-            == ArsenalBlocks.ARSENAL_BACKPACK_ELECTRON_BLOCK.get();
+        var block = be.getBlockState().getBlock();
+        return block == ArsenalBlocks.ARSENAL_BACKPACK_ELECTRON_BLOCK.get()
+            || block == ArsenalBlocks.ARSENAL_BACKPACK_FIRE_BLOCK.get();
     }
 }

@@ -54,8 +54,9 @@ public class BackpackOpenInterceptor {
         // backpack の中身が arsenal_backpack か確認
         final boolean isArsenal;
         try {
-            isArsenal = ctx.getBackpackWrapper(player).getBackpack().getItem()
-                == ArsenalItems.ARSENAL_BACKPACK_ELECTRON.get();
+            var item = ctx.getBackpackWrapper(player).getBackpack().getItem();
+            isArsenal = item == ArsenalItems.ARSENAL_BACKPACK_ELECTRON.get()
+                || item == ArsenalItems.ARSENAL_BACKPACK_FIRE.get();
         } catch (Throwable t) {
             return;
         }

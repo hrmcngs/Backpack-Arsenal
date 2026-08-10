@@ -56,13 +56,18 @@ public class ArsenalBackpackItem extends BackpackItem {
     public static final int PER_SLOT_STACK_LIMIT = 9;
 
     public ArsenalBackpackItem() {
+        this((Supplier<BackpackBlock>) backpackarsenal.init.ArsenalBlocks.ARSENAL_BACKPACK_ELECTRON_BLOCK::get);
+    }
+
+    /** Variant constructor used by Fire and future elemental backpacks. */
+    protected ArsenalBackpackItem(Supplier<BackpackBlock> blockSupplier) {
         super(
             // lambda が呼ばれる度に config の現在値を読むので、reload で動的反映可能
             () -> backpackarsenal.init.ArsenalBackpackConfig.inventorySlots,
             () -> backpackarsenal.init.ArsenalBackpackConfig.upgradeSlots,
             // 設置時の見た目をカスタム 3D モデルにするため独自 Block を渡す。
             // 元は ModBlocks.BACKPACK::get (SB 標準) だった。
-            (Supplier<BackpackBlock>) backpackarsenal.init.ArsenalBlocks.ARSENAL_BACKPACK_ELECTRON_BLOCK::get,
+            blockSupplier,
             (UnaryOperator<Item.Properties>) props -> props.rarity(Rarity.UNCOMMON).stacksTo(1)
         );
     }
@@ -126,6 +131,8 @@ public class ArsenalBackpackItem extends BackpackItem {
      *  saya (納刀) の柄 tint に使う。 中身は SB 管理で client に来ないため、 count と同様 NBT 経由で渡す。 */
     private static final String NBT_TSUKA_COLOR_TAG = "BackpackArsenalTsukaColor";
     private static final String NBT_TSUBA_COLOR_TAG = "BackpackArsenalTsubaColor";
+    /** Fire backpack model predicate: at least one Fire Blade is in a regular slot. */
+    public static final String NBT_FIRE_BLADE_LOADED_TAG = "BackpackArsenalFireBladeLoaded";
 
     /** the_four_primitives の KoshiraeFittings が使う NBT キー (top-level int, RGB)。 文字列直参照でクロスMOD依存を避ける。 */
     private static final String KOSHIRAE_TSUKA_KEY = "TsukaColor";
@@ -160,6 +167,21 @@ public class ArsenalBackpackItem extends BackpackItem {
             }
         }
         return count;
+    }
+
+    private static boolean liveScanFireBlade(ItemStack backpack) {
+        IItemHandler handler = backpack.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
+        if (handler == null) return false;
+        for (int i = 0; i < handler.getSlots(); i++) {
+            if (handler.getStackInSlot(i).getItem() == ArsenalItems.FIRE_BLADE.get()) return true;
+        }
+        return false;
+    }
+
+    /** Safe on both sides; the server-synchronized NBT is authoritative for rendering. */
+    public static boolean hasLoadedFireBlade(ItemStack backpack) {
+        CompoundTag tag = backpack.getTag();
+        return tag != null && tag.getBoolean(NBT_FIRE_BLADE_LOADED_TAG);
     }
 
     /** blade の拵え色を読む: koshirae NBT (top-level int) → 無ければ display.color (革方式) → 無ければ -1。
@@ -211,6 +233,7 @@ public class ArsenalBackpackItem extends BackpackItem {
         int newCount = liveScanVoltaicCount(backpack);
         int newTsuka = liveScanVoltaicColor(backpack, KOSHIRAE_TSUKA_KEY);
         int newTsuba = liveScanVoltaicColor(backpack, KOSHIRAE_TSUBA_KEY);
+        boolean fireBladeLoaded = liveScanFireBlade(backpack);
         var nbt = backpack.getTag();
         int oldCount = (nbt != null && nbt.contains(NBT_VOLTAIC_COUNT_TAG))
             ? nbt.getInt(NBT_VOLTAIC_COUNT_TAG) : -1;
@@ -226,6 +249,11 @@ public class ArsenalBackpackItem extends BackpackItem {
         }
         if (oldTsuba != newTsuba) {
             backpack.getOrCreateTag().putInt(NBT_TSUBA_COLOR_TAG, newTsuba);
+        }
+        if (hasLoadedFireBlade(backpack) != fireBladeLoaded
+                || backpack.getTag() == null
+                || !backpack.getTag().contains(NBT_FIRE_BLADE_LOADED_TAG)) {
+            backpack.getOrCreateTag().putBoolean(NBT_FIRE_BLADE_LOADED_TAG, fireBladeLoaded);
         }
     }
 

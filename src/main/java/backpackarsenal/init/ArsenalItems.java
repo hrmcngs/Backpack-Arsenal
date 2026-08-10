@@ -3,6 +3,8 @@ package backpackarsenal.init;
 import backpackarsenal.BackpackArsenalMod;
 import backpackarsenal.item.ArsenalBackpackItem;
 import backpackarsenal.item.VoltaicBladeItem;
+import backpackarsenal.item.FireBackpackItem;
+import backpackarsenal.item.FireBladeItem;
 import backpackarsenal.item.VoltaicCapacitorUpgradeItem;
 import backpackarsenal.upgrade.VoltaicChargerUpgradeItem;
 import backpackarsenal.upgrade.VoltaicGrowthUpgradeItem;
@@ -34,6 +36,12 @@ public class ArsenalItems {
      *  今後 Fire / Ice 等の variant を追加する想定で suffix を付けている。 */
     public static final RegistryObject<Item> ARSENAL_BACKPACK_ELECTRON =
         REGISTRY.register("arsenal_backpack_electron", ArsenalBackpackItem::new);
+
+    /** Soldier 11-style blade and gas-generating Fire backpack. */
+    public static final RegistryObject<Item> FIRE_BLADE =
+        REGISTRY.register("fire_blade", FireBladeItem::new);
+    public static final RegistryObject<Item> ARSENAL_BACKPACK_FIRE =
+        REGISTRY.register("arsenal_backpack_fire", FireBackpackItem::new);
 
     /** Voltaic Charger Upgrade tier 0 (base). 寄与 +1 (1枚で multiplier=2)。
      *  上位 tier は {@link #VOLTAIC_CHARGER_UPGRADE_TIER_1} 〜 {@link #VOLTAIC_CHARGER_UPGRADE_TIER_4}。 */

@@ -1,0 +1,8 @@
+{
+  "multipart": [
+    {"when":{"facing":"north"},"apply":{"model":"backpack_arsenal:block/arsenal_backpack_fire"}},
+    {"when":{"facing":"east"},"apply":{"model":"backpack_arsenal:block/arsenal_backpack_fire","y":90}},
+    {"when":{"facing":"south"},"apply":{"model":"backpack_arsenal:block/arsenal_backpack_fire","y":180}},
+    {"when":{"facing":"west"},"apply":{"model":"backpack_arsenal:block/arsenal_backpack_fire","y":270}}
+  ]
+}

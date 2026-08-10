@@ -12,6 +12,8 @@
   "item.backpack_arsenal.voltaic_element_core.tooltip": "§7Anvil-combine with a Voltaic Blade to switch §dElectric§7 ⇄ §eThunder§7.",
   "item.backpack_arsenal.voltaic_element_core.tooltip2": "§7Thunder charges §oslower§r§7 in a backpack than Electric.",
   "item.backpack_arsenal.arsenal_backpack_electron": "Arsenal Backpack (Electron)",
+  "item.backpack_arsenal.arsenal_backpack_fire": "Arsenal Backpack (Fire)",
+  "item.backpack_arsenal.fire_blade": "Fire Blade",
   "item.backpack_arsenal.basic_backpack": "Basic Backpack",
   "item.backpack_arsenal.basic_backpack.tooltip": "§7A plain backpack without the charging mechanic.",
   "item.backpack_arsenal.arsenal_backpack_electron.stored": "§bSheathed: %s (%s / %s)",

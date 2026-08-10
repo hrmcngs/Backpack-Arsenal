@@ -2,6 +2,7 @@ package backpackarsenal.init;
 
 import backpackarsenal.BackpackArsenalMod;
 import backpackarsenal.block.ArsenalBackpackBlockElectron;
+import backpackarsenal.block.ArsenalBackpackBlockFire;
 import net.minecraft.world.level.block.Block;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
@@ -21,4 +22,7 @@ public class ArsenalBlocks {
 
     public static final RegistryObject<ArsenalBackpackBlockElectron> ARSENAL_BACKPACK_ELECTRON_BLOCK =
         REGISTRY.register("arsenal_backpack_electron", ArsenalBackpackBlockElectron::new);
+
+    public static final RegistryObject<ArsenalBackpackBlockFire> ARSENAL_BACKPACK_FIRE_BLOCK =
+        REGISTRY.register("arsenal_backpack_fire", ArsenalBackpackBlockFire::new);
 }

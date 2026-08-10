@@ -58,7 +58,8 @@ public class ChestBackpackLayer<T extends AbstractClientPlayer, M extends Humano
 
         ItemStack chestStack = player.getItemBySlot(EquipmentSlot.CHEST);
         if (chestStack.isEmpty()) return;
-        if (chestStack.getItem() != ArsenalItems.ARSENAL_BACKPACK_ELECTRON.get()) return;
+        if (chestStack.getItem() != ArsenalItems.ARSENAL_BACKPACK_ELECTRON.get()
+                && chestStack.getItem() != ArsenalItems.ARSENAL_BACKPACK_FIRE.get()) return;
 
         if (!diagLogged) {
             diagLogged = true;

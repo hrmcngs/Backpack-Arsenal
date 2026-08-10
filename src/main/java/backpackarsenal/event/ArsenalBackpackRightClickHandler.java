@@ -40,7 +40,8 @@ public class ArsenalBackpackRightClickHandler {
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onRightClickItem(PlayerInteractEvent.RightClickItem event) {
         ItemStack stack = event.getItemStack();
-        boolean isArsenal = stack.getItem() == ArsenalItems.ARSENAL_BACKPACK_ELECTRON.get();
+        boolean isArsenal = stack.getItem() == ArsenalItems.ARSENAL_BACKPACK_ELECTRON.get()
+            || stack.getItem() == ArsenalItems.ARSENAL_BACKPACK_FIRE.get();
         if (!isArsenal) return;
 
         Player player = event.getEntity();

@@ -3,6 +3,7 @@
   "replace": false,
   "values": [
     "backpack_arsenal:arsenal_backpack_electron",
+    "backpack_arsenal:arsenal_backpack_fire",
     "backpack_arsenal:basic_backpack"
   ]
 }

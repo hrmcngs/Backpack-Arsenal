@@ -12,6 +12,8 @@
   "item.backpack_arsenal.voltaic_element_core.tooltip": "§7金床でボルタイック・ブレードと合成すると属性を §d電気§7 ⇄ §e雷§7 に切替。",
   "item.backpack_arsenal.voltaic_element_core.tooltip2": "§7雷はバックパック充電が電気より §o遅い§r§7。",
   "item.backpack_arsenal.arsenal_backpack_electron": "アーセナル・バックパック (エレクトロン)",
+  "item.backpack_arsenal.arsenal_backpack_fire": "アーセナル・バックパック (ファイア)",
+  "item.backpack_arsenal.fire_blade": "ファイア・ブレード",
   "item.backpack_arsenal.basic_backpack": "ベーシック・バックパック",
   "item.backpack_arsenal.basic_backpack.tooltip": "§7充電機能の無い普通のバックパック。",
   "item.backpack_arsenal.arsenal_backpack_electron.stored": "§b納刀中: %s (%s / %s)",
