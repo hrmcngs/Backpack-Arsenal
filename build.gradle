@@ -9,14 +9,18 @@ buildscript {
 }
 
 repositories {
+    // Keep these before ForgeGradle is applied. Its MavenArtifactDownloader can
+    // begin resolving before the repositories declared later in this file have
+    // been registered.
     maven {
         url 'https://maven.minecraftforge.net/releases'
-        content {
-            includeGroup 'net.minecraftforge'
-            includeGroup 'cpw.mods'
-            includeGroup 'de.oceanlabs.mcp'
-            includeGroup 'org.spongepowered'
-        }
+        // Mojang-only artifacts are not mirrored under /releases. Without this
+        // exclusion the Forge endpoint returns its HTML redirect as a .jar.
+        content { excludeGroup 'com.mojang' }
+    }
+    maven {
+        url 'https://libraries.minecraft.net/'
+        content { includeGroup 'com.mojang' }
     }
 }
 
@@ -32,6 +36,27 @@ afterEvaluate {
 
 apply plugin: 'net.minecraftforge.gradle'
 apply plugin: 'eclipse'
+
+// Registered after ForgeGradle's callback, this rewrites the repository object
+// immediately after the plugin adds it and before Gradle creates its resolver.
+// Removing the object, or changing it at taskGraph time, leaves Gradle's
+// already-created transport pointed at the legacy root.
+afterEvaluate {
+    repositories.withType(org.gradle.api.artifacts.repositories.MavenArtifactRepository).configureEach { repo ->
+        if (repo.url.toString().replaceAll('/+$', '') == 'https://maven.minecraftforge.net') {
+            repo.setUrl('https://maven.minecraftforge.net/releases')
+        }
+    }
+}
+
+// Keep a final guard for repositories added by any later project callbacks.
+gradle.projectsEvaluated {
+    repositories.withType(org.gradle.api.artifacts.repositories.MavenArtifactRepository).configureEach { repo ->
+        if (repo.url.toString().replaceAll('/+$', '') == 'https://maven.minecraftforge.net') {
+            repo.setUrl('https://maven.minecraftforge.net/releases')
+        }
+    }
+}
 
 // =====================================================================
 // Backpack Arsenal — Sophisticated Backpacks 連携アドオン

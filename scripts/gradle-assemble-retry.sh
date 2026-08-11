@@ -13,6 +13,7 @@ repair_broken_forge_jars() {
 
   local jar
   local base_url
+  local -a base_urls
   local relative_path
   local replacement
   local removed=0
@@ -30,9 +31,12 @@ repair_broken_forge_jars() {
       # actual artifact. Mojang-only artifacts live on libraries.minecraft.net,
       # so use that as a checked fallback.
       if [[ "$relative_path" != "$jar" ]]; then
-        for base_url in \
-          'https://maven.minecraftforge.net/releases' \
-          'https://libraries.minecraft.net'; do
+        if [[ "$relative_path" == com/mojang/* ]]; then
+          base_urls=('https://libraries.minecraft.net' 'https://maven.minecraftforge.net/releases')
+        else
+          base_urls=('https://maven.minecraftforge.net/releases' 'https://libraries.minecraft.net')
+        fi
+        for base_url in "${base_urls[@]}"; do
           rm -f -- "$replacement"
           if curl --fail --location --silent --show-error \
               --retry 3 --connect-timeout 20 \
