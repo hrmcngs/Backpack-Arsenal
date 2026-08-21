@@ -3,6 +3,7 @@ package backpackarsenal.client.render;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.HumanoidModel;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.RenderLayerParent;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -25,6 +26,9 @@ import top.theillusivec4.curios.api.client.ICurioRenderer;
  * Blockbench 空間で組まれている前提。
  */
 public class ArsenalBackpackCurioRenderer implements ICurioRenderer {
+
+    /** 複雑な鞘モデルは近距離だけ描画する。16 block より先はbackpack本体のみ。 */
+    private static final double SAYA_RENDER_DISTANCE_SQR = 16.0 * 16.0;
 
     @Override
     public <T extends LivingEntity, M extends EntityModel<T>> void render(
@@ -54,7 +58,10 @@ public class ArsenalBackpackCurioRenderer implements ICurioRenderer {
 
             // renderBackpack 後の poseStack は backpack-local 空間に乗ったまま。
             // ここで saya を同じ space で描画すると backpack に重なる。
-            SayaBackpackOverlay.renderSayaForBackpackOnBack(stack, poseStack, bufferSource, packedLight);
+            var camera = Minecraft.getInstance().getCameraEntity();
+            if (camera == null || camera.distanceToSqr(wearer) <= SAYA_RENDER_DISTANCE_SQR) {
+                SayaBackpackOverlay.renderSayaForBackpackOnBack(stack, poseStack, bufferSource, packedLight);
+            }
         } finally {
             poseStack.popPose();
         }
